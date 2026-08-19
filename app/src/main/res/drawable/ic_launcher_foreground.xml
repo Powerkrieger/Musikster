@@ -1,0 +1,60 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- disc -->
+    <path
+        android:fillColor="#1A1A1A"
+        android:pathData="M24,54 A30,30 0 1 0 84,54 A30,30 0 1 0 24,54 Z" />
+
+    <!-- grooves -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.18"
+        android:strokeWidth="1"
+        android:pathData="M29.5,54 A24.5,24.5 0 1 0 78.5,54 A24.5,24.5 0 1 0 29.5,54" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.18"
+        android:strokeWidth="1"
+        android:pathData="M34,54 A20,20 0 1 0 74,54 A20,20 0 1 0 34,54" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.18"
+        android:strokeWidth="1"
+        android:pathData="M38.5,54 A15.5,15.5 0 1 0 69.5,54 A15.5,15.5 0 1 0 38.5,54" />
+
+    <!-- label -->
+    <path android:pathData="M43,54 A11,11 0 1 0 65,54 A11,11 0 1 0 43,54 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="43"
+                android:startY="54"
+                android:endX="65"
+                android:endY="54"
+                android:type="linear">
+                <item android:color="#F7E782" android:offset="0.0" />
+                <item android:color="#EC4482" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- spindle hole -->
+    <path
+        android:fillColor="#2B2B2B"
+        android:pathData="M52.4,54 A1.6,1.6 0 1 0 55.6,54 A1.6,1.6 0 1 0 52.4,54 Z" />
+
+    <!-- highlight -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.3"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M30,41 A30,30 0 0 1 41,29" />
+</vector>

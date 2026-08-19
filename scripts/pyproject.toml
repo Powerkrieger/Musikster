@@ -1,0 +1,10 @@
+[project]
+name = "deck-builder"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "pillow>=10.0",
+    "qrcode[pil]>=7.4",
+    "reportlab>=4.0",
+]

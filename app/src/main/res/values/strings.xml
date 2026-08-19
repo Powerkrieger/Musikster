@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">[name]\'s Musikster</string>
+    <!-- TODO(Joost): personalize this welcome message for [name]\'s birthday -->
+    <string name="birthday_message">Happy Birthday, [name]! 🎉\nEvery card is one of your favorite songs — good luck building the timeline!</string>
+</resources>

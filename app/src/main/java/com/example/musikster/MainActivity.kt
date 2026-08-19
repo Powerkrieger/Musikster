@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -28,6 +30,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -46,9 +50,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MusiksterTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MusiksterApp(viewModel)
-                }
+                MusiksterApp(viewModel)
             }
         }
     }
@@ -95,6 +97,7 @@ fun MusiksterApp(viewModel: MainViewModel) {
     val errorMessage by viewModel.errorMessage.collectAsState()
     val deckCardCount by viewModel.deckCardCount.collectAsState()
     val deckImportMessage by viewModel.deckImportMessage.collectAsState()
+    val backgroundGradient by viewModel.backgroundGradient.collectAsState()
 
     val context = LocalContext.current
 
@@ -110,31 +113,41 @@ fun MusiksterApp(viewModel: MainViewModel) {
 
     val showHomeButton = appMode is AppMode.ScanPlay
 
-    Box(Modifier.fillMaxSize()) {
-        when (appMode) {
-            is AppMode.NotConnected -> NotConnectedScreen(onConnect = { viewModel.startAuth() })
-            is AppMode.Authenticating -> AuthenticatingScreen()
-            is AppMode.Home -> HomeScreen(
-                isRemoteConnected = isRemoteConnected,
-                errorMessage = errorMessage,
-                deckCardCount = deckCardCount,
-                deckImportMessage = deckImportMessage,
-                onPlay = { viewModel.openScanPlay() },
-                onImportDeck = {
-                    viewModel.clearDeckImportMessage()
-                    // "*/*" rather than "application/json": file pickers/providers are
-                    // inconsistent about the MIME type they report for .gz, so a narrower
-                    // filter can hide a valid deck.json.gz. DeckRepository validates content.
-                    importDeckLauncher.launch("*/*")
-                }
-            )
-            is AppMode.ScanPlay -> ScanPlayScreen(viewModel.scanPlay)
+    // A fresh two-color gradient each round (see MainViewModel.backgroundGradient), mirroring
+    // QuickMusicQuiz's changing background. Drawn full-screen behind everything; the camera
+    // preview during scanning covers it entirely, so it's only visible on the non-camera screens.
+    val gradientBrush = Brush.linearGradient(
+        listOf(Color(backgroundGradient.first), Color(backgroundGradient.second))
+    )
+
+    Box(Modifier.fillMaxSize().background(gradientBrush)) {
+        Surface(color = Color.Transparent, contentColor = Color.White) {
+            when (appMode) {
+                is AppMode.NotConnected -> NotConnectedScreen(onConnect = { viewModel.startAuth() })
+                is AppMode.Authenticating -> AuthenticatingScreen()
+                is AppMode.Home -> HomeScreen(
+                    isRemoteConnected = isRemoteConnected,
+                    errorMessage = errorMessage,
+                    deckCardCount = deckCardCount,
+                    deckImportMessage = deckImportMessage,
+                    onPlay = { viewModel.openScanPlay() },
+                    onImportDeck = {
+                        viewModel.clearDeckImportMessage()
+                        // "*/*" rather than "application/json": file pickers/providers are
+                        // inconsistent about the MIME type they report for .gz, so a narrower
+                        // filter can hide a valid deck.json.gz. DeckRepository validates content.
+                        importDeckLauncher.launch("*/*")
+                    }
+                )
+                is AppMode.ScanPlay -> ScanPlayScreen(viewModel.scanPlay)
+            }
         }
 
         if (showHomeButton) {
             TextButton(
                 onClick = { viewModel.goHome() },
-                modifier = Modifier.align(Alignment.TopStart).padding(top = 40.dp, start = 8.dp)
+                modifier = Modifier.align(Alignment.TopStart).padding(top = 40.dp, start = 8.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
             ) {
                 Text("← Home")
             }

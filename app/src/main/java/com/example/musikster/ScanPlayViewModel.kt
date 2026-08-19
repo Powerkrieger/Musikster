@@ -22,7 +22,8 @@ sealed class ScanPlayState {
 class ScanPlayViewModel(
     private val deckRepository: DeckRepository,
     private val scope: CoroutineScope,
-    private val playbackManager: SpotifyPlaybackManager
+    private val playbackManager: SpotifyPlaybackManager,
+    private val onRoundStart: () -> Unit = {}
 ) {
     private val _state = MutableStateFlow<ScanPlayState>(ScanPlayState.Scanning)
     val state: StateFlow<ScanPlayState> = _state.asStateFlow()
@@ -42,6 +43,7 @@ class ScanPlayViewModel(
             return
         }
 
+        onRoundStart()
         _state.value = ScanPlayState.Loading
         scope.launch {
             playbackManager.playTrackAt(card.spotifyUri, 0L)

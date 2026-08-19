@@ -97,6 +97,14 @@ have it baked in. Instead of rebuilding, just send them the generated
 storage, overriding the bundled one immediately — no rebuild/reinstall needed. See
 `app/src/main/java/com/example/musikster/DeckRepository.kt`.
 
+It compresses well (mostly repetitive keys/URLs), so if you'd rather send a smaller file, gzip it
+first — the import step transparently decompresses:
+```
+gzip -k app/src/main/assets/deck.json   # -> deck.json.gz, ~5x smaller
+```
+Send `deck.json.gz` instead; "Import Deck" auto-detects and decompresses it, no unzipping needed
+on the other end. (Plain `.gz`, not a `.zip` archive.)
+
 **Bulk-adding tracks:** `scripts/add_to_playlist.py` adds a batch of tracks to a playlist you own,
 without leaving the terminal — handy when you've curated a list faster than you can add them by
 hand in Spotify. Put `artist,title` pairs (one per line) in a CSV and run:

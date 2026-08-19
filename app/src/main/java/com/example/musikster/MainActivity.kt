@@ -122,7 +122,10 @@ fun MusiksterApp(viewModel: MainViewModel) {
                 onPlay = { viewModel.openScanPlay() },
                 onImportDeck = {
                     viewModel.clearDeckImportMessage()
-                    importDeckLauncher.launch("application/json")
+                    // "*/*" rather than "application/json": file pickers/providers are
+                    // inconsistent about the MIME type they report for .gz, so a narrower
+                    // filter can hide a valid deck.json.gz. DeckRepository validates content.
+                    importDeckLauncher.launch("*/*")
                 }
             )
             is AppMode.ScanPlay -> ScanPlayScreen(viewModel.scanPlay)

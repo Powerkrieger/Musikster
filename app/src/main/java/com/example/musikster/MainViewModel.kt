@@ -51,20 +51,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _deckImportMessage = MutableStateFlow<String?>(null)
     val deckImportMessage: StateFlow<String?> = _deckImportMessage.asStateFlow()
 
-    /** Reads [uri] (from a system file picker) and, if it's a valid deck.json, makes it the active deck. */
+    /**
+     * Reads [uri] (from a system file picker) and, if it's a valid deck.json — plain or
+     * gzip-compressed (a plain .json.gz, not a .zip) — makes it the active deck.
+     */
     fun importDeck(uri: Uri) {
         viewModelScope.launch {
-            val json = try {
-                getApplication<Application>().contentResolver.openInputStream(uri)
-                    ?.bufferedReader()?.use { it.readText() }
+            val bytes = try {
+                getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
             } catch (e: Exception) {
                 null
             }
-            val imported = json != null && deckRepository.importDeck(json)
+            val imported = bytes != null && deckRepository.importDeck(bytes)
             _deckImportMessage.value = if (imported) {
                 "Deck imported!"
             } else {
-                "Couldn't read that file — make sure it's a deck.json file."
+                "Couldn't read that file — make sure it's a deck.json (or deck.json.gz) file."
             }
             _deckCardCount.value = deckRepository.loadDeck()?.cards?.size
         }

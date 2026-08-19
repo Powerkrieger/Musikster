@@ -2,6 +2,7 @@ package com.example.musikster
 
 import android.content.Context
 import java.io.File
+import java.util.zip.GZIPInputStream
 import org.json.JSONObject
 
 /**
@@ -29,9 +30,15 @@ class DeckRepository(private val context: Context) {
 
     fun findCard(cardId: String): Card? = loadDeck()?.cards?.find { it.cardId == cardId }
 
-    /** Validates [json] parses as a [Deck], then persists it as the active deck. */
-    fun importDeck(json: String): Boolean {
+    /**
+     * Validates [bytes] parses as a [Deck], then persists it as the active deck.
+     * Transparently gzip-decompresses first if [bytes] looks gzipped (deck.json compresses
+     * well — mostly repetitive keys/URLs — so it's small enough to email/AirDrop as a .gz).
+     */
+    fun importDeck(bytes: ByteArray): Boolean {
         return try {
+            val json = (if (isGzip(bytes)) GZIPInputStream(bytes.inputStream()) else bytes.inputStream())
+                .bufferedReader().use { it.readText() }
             Deck.fromJson(JSONObject(json))
             importedFile.writeText(json)
             true
@@ -39,6 +46,9 @@ class DeckRepository(private val context: Context) {
             false
         }
     }
+
+    private fun isGzip(bytes: ByteArray): Boolean =
+        bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
 
     private fun readImported(): String? =
         if (importedFile.exists()) importedFile.readText() else null

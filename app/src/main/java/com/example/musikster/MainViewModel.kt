@@ -1,6 +1,7 @@
 package com.example.musikster
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,8 +27,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val authManager = SpotifyAuthManager(application)
     val playbackManager = SpotifyPlaybackManager(application)
+    val deckRepository = DeckRepository(application)
 
-    val scanPlay = ScanPlayViewModel(application, viewModelScope, playbackManager)
+    val scanPlay = ScanPlayViewModel(deckRepository, viewModelScope, playbackManager)
 
     private val _appMode = MutableStateFlow<AppMode>(
         if (authManager.isAuthenticated()) AppMode.Home else AppMode.NotConnected
@@ -42,6 +44,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _deckCardCount = MutableStateFlow(deckRepository.loadDeck()?.cards?.size)
+    val deckCardCount: StateFlow<Int?> = _deckCardCount.asStateFlow()
+
+    private val _deckImportMessage = MutableStateFlow<String?>(null)
+    val deckImportMessage: StateFlow<String?> = _deckImportMessage.asStateFlow()
+
+    /** Reads [uri] (from a system file picker) and, if it's a valid deck.json, makes it the active deck. */
+    fun importDeck(uri: Uri) {
+        viewModelScope.launch {
+            val json = try {
+                getApplication<Application>().contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() }
+            } catch (e: Exception) {
+                null
+            }
+            val imported = json != null && deckRepository.importDeck(json)
+            _deckImportMessage.value = if (imported) {
+                "Deck imported!"
+            } else {
+                "Couldn't read that file — make sure it's a deck.json file."
+            }
+            _deckCardCount.value = deckRepository.loadDeck()?.cards?.size
+        }
+    }
+
+    fun clearDeckImportMessage() { _deckImportMessage.value = null }
 
     fun startAuth() {
         _appMode.value = AppMode.Authenticating

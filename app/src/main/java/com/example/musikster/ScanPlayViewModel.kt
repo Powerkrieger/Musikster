@@ -1,6 +1,5 @@
 package com.example.musikster
 
-import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +20,10 @@ sealed class ScanPlayState {
 
 /** Owned by [MainViewModel] as a plain state-holder class sharing its coroutine scope. */
 class ScanPlayViewModel(
-    context: Context,
+    private val deckRepository: DeckRepository,
     private val scope: CoroutineScope,
     private val playbackManager: SpotifyPlaybackManager
 ) {
-    private val deckRepository = DeckRepository(context)
-
     private val _state = MutableStateFlow<ScanPlayState>(ScanPlayState.Scanning)
     val state: StateFlow<ScanPlayState> = _state.asStateFlow()
 

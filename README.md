@@ -79,6 +79,14 @@ pastel yellow-to-pink gradient with title/artist/year.
 Because the deck now lives in the APK's assets, reinstalling the app (same build) restores it —
 there's no separate backup step needed anymore.
 
+**Sending the deck to someone else's build:** `deck.json` is gitignored (it's a personal playlist,
+not source), so anyone who builds the app from a clone of this repo — e.g. [name] herself — won't
+have it baked in. Instead of rebuilding, just send them the generated
+`app/src/main/assets/deck.json` file (AirDrop, email, whatever); the app's Home screen has an
+**"Import Deck"** button that opens a file picker, validates the file, and stores it in app-private
+storage, overriding the bundled one immediately — no rebuild/reinstall needed. See
+`app/src/main/java/com/example/musikster/DeckRepository.kt`.
+
 **Bulk-adding tracks:** `scripts/add_to_playlist.py` adds a batch of tracks to a playlist you own,
 without leaving the terminal — handy when you've curated a list faster than you can add them by
 hand in Spotify. Put `artist,title` pairs (one per line) in a CSV and run:
@@ -134,7 +142,7 @@ the app — see [Building the deck](#building-the-deck).
 | `MainViewModel.kt` | Top-level `AppMode` state; auth; owns the managers below |
 | `SpotifyAuthManager.kt` | PKCE OAuth; token storage |
 | `SpotifyPlaybackManager.kt` | App Remote SDK wrapper (play/pause/seek/art) |
-| `DeckModels.kt` / `DeckRepository.kt` | Card/Deck data + loading the bundled `assets/deck.json` |
+| `DeckModels.kt` / `DeckRepository.kt` | Card/Deck data + loading the bundled `assets/deck.json`, or an imported one if present |
 | `ScanPlayViewModel.kt` | QR scan → playback state machine |
 | `HomeScreen.kt` / `ScanScreen.kt` / `PlaybackScreen.kt` | Compose screens |
 | `scripts/build_deck.py` | Standalone deck builder: playlist fetch, year lookup, QR/PDF generation |

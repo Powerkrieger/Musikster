@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +22,10 @@ import androidx.compose.ui.unit.dp
 fun HomeScreen(
     isRemoteConnected: Boolean,
     errorMessage: String?,
-    onPlay: () -> Unit
+    deckCardCount: Int?,
+    deckImportMessage: String?,
+    onPlay: () -> Unit,
+    onImportDeck: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -48,6 +52,20 @@ fun HomeScreen(
         if (errorMessage != null) {
             Spacer(Modifier.height(8.dp))
             Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        Spacer(Modifier.height(32.dp))
+        Text(
+            if (deckCardCount != null) "Deck loaded — $deckCardCount cards" else "No deck loaded yet",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onImportDeck, modifier = Modifier.fillMaxWidth()) {
+            Text(if (deckCardCount != null) "Import a Different Deck" else "Import Deck")
+        }
+        if (deckImportMessage != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(deckImportMessage, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
         }
     }
 }

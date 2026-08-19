@@ -4,8 +4,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,6 +93,8 @@ fun MusiksterApp(viewModel: MainViewModel) {
     val authUrl by viewModel.authUrl.collectAsState()
     val isRemoteConnected by viewModel.isAppRemoteConnected.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val deckCardCount by viewModel.deckCardCount.collectAsState()
+    val deckImportMessage by viewModel.deckImportMessage.collectAsState()
 
     val context = LocalContext.current
 
@@ -99,6 +103,10 @@ fun MusiksterApp(viewModel: MainViewModel) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         viewModel.onAuthUrlConsumed()
     }
+
+    val importDeckLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.importDeck(it) } }
 
     val showHomeButton = appMode is AppMode.ScanPlay
 
@@ -109,7 +117,13 @@ fun MusiksterApp(viewModel: MainViewModel) {
             is AppMode.Home -> HomeScreen(
                 isRemoteConnected = isRemoteConnected,
                 errorMessage = errorMessage,
-                onPlay = { viewModel.openScanPlay() }
+                deckCardCount = deckCardCount,
+                deckImportMessage = deckImportMessage,
+                onPlay = { viewModel.openScanPlay() },
+                onImportDeck = {
+                    viewModel.clearDeckImportMessage()
+                    importDeckLauncher.launch("application/json")
+                }
             )
             is AppMode.ScanPlay -> ScanPlayScreen(viewModel.scanPlay)
         }

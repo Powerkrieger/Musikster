@@ -7,41 +7,51 @@ the answer on screen, so it's safe to have visible on the table.
 
 ---
 
-## Setup (required before first build/run)
+This is a one-off personal project for one specific Spotify app/deck, not a template meant to be
+forked and reconfigured — there's exactly one Spotify Client ID and one deck in play. The two
+things kept out of the repo are [name]'s curated song list (`deck.json`) and her recipient's photo
+(`face.png`), both gitignored; everything else (the Spotify app, the theming, the release
+signing) is already set up and just needs a build.
 
-### 1. Spotify Developer Dashboard
-Go to https://developer.spotify.com/dashboard and create an app.
+## If you're [name] (just want to play)
 
-Under **Settings → Edit**, add:
-- **Redirect URIs:**
-  - `musikster://callback` (the Android app's login)
-  - `http://127.0.0.1:8927/callback` (the deck-building script's login — see below)
-- **Android Package Name:** `com.example.musikster`
-- **Android Package Fingerprint (SHA-1):** `3A:72:CE:FB:A5:96:66:48:DC:69:81:B6:96:B6:0C:4E:76:E7:99:00`
-  *(debug keystore fingerprint — same machine-wide `~/.android/debug.keystore` used by QuickMusicQuiz.
-  Use your release keystore's SHA-1 instead for a release build.)*
+No building, no Android Studio, no Spotify dashboard. Grab the newest APK from
+[Releases](../../releases), install it, then use the **"Import Deck"** button on the Home screen
+to load the `deck.json` file whoever set this up sent you (see
+[Building the deck](#building-the-deck) below for where that file comes from).
 
-### 2. Fill in your Client ID
-Add it to `local.properties` (already gitignored, never committed):
-```
-SPOTIFY_CLIENT_ID=your_client_id_here
-```
-Gradle exposes this as `BuildConfig.SPOTIFY_CLIENT_ID`, read by `SpotifyAuthManager.kt` — no
-client ID ever lives in source. `scripts/build_deck.py` reads the same value straight out of
-`local.properties`, so it only needs to be set once.
+## Developer setup (building from source)
 
-### 3. Spotify App Remote AAR
+### 1. Spotify Client ID
+The app needs `BuildConfig.SPOTIFY_CLIENT_ID` (read by `SpotifyAuthManager.kt`) to talk to Spotify.
+It comes from one of two places, whichever is set:
+- **CI builds** (GitHub Actions, see `.github/workflows/build.yml`) read it from the
+  `SPOTIFY_CLIENT_ID` repo secret — already configured, nothing to do for a normal release build.
+- **Local builds** (Android Studio, or running `scripts/build_deck.py`) read it from
+  `local.properties` (gitignored, never committed):
+  ```
+  SPOTIFY_CLIENT_ID=your_client_id_here
+  ```
+  Ask Joost for the value, or create your own app at https://developer.spotify.com/dashboard —
+  under **Settings → Edit** you'd need:
+  - **Redirect URIs:** `musikster://callback` (app login) and
+    `http://127.0.0.1:8927/callback` (deck-building script login)
+  - **Android Package Name:** `com.example.musikster`
+  - **Android Package Fingerprint (SHA-1):** your keystore's SHA-1 (`~/.android/debug.keystore`
+    for local debug builds; the release keystore's for anything you intend to distribute)
+
+### 2. Spotify App Remote AAR
 Already included in `app/libs/spotify-app-remote-release-0.8.0.aar` (copied from the QuickMusicQuiz
 project). If you ever need to update it, download a newer release from
 https://github.com/spotify/android-sdk/releases and replace the file (update the filename
 reference in `app/build.gradle.kts` too if the version changes).
 
-### 4. Build the deck
+### 3. Build the deck
 Deck building happens **outside the app**, once, on your computer — see
-[Building the deck](#building-the-deck) below. The app just plays a deck that's already baked in.
+[Building the deck](#building-the-deck) below.
 
-### 5. Personalize it for [name]
-A few things are deliberately left as placeholders for you to fill in:
+### 4. Personalization status
+A couple of placeholders are still open (see the `TODO(Joost)` comments):
 - `app/src/main/res/values/strings.xml` — `birthday_message`
 - `app/src/main/java/com/example/musikster/ui/theme/Color.kt` — accent colors (currently
   the default Compose template purple/pink; swap in her favorite color)

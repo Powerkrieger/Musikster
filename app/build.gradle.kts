@@ -61,11 +61,11 @@ android {
     }
 
     defaultConfig {
-        buildConfigField(
-            "String",
-            "SPOTIFY_CLIENT_ID",
-            "\"${localProperties.getProperty("SPOTIFY_CLIENT_ID", "")}\""
-        )
+        // CI (see .github/workflows/build.yml) sets this via the SPOTIFY_CLIENT_ID repo secret;
+        // local Android Studio builds fall back to local.properties.
+        val spotifyClientId = System.getenv("SPOTIFY_CLIENT_ID")
+            ?: localProperties.getProperty("SPOTIFY_CLIENT_ID", "")
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
     }
 }
 

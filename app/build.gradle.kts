@@ -10,6 +10,10 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+base {
+    archivesName.set("musikster")
+}
+
 android {
     namespace = "com.example.musikster"
     compileSdk {

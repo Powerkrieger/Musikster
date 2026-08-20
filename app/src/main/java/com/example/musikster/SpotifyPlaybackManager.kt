@@ -34,10 +34,25 @@ class SpotifyPlaybackManager(
 ) {
 
     private var appRemote: SpotifyAppRemote? = null
+    private var connecting = false
 
     val isConnected: Boolean get() = appRemote?.isConnected == true
 
+    /** MainActivity.onStart() and the OAuth redirect handler can both try to (re)connect
+     * within moments of each other (returning from the Spotify login screen triggers both
+     * an onNewIntent and an onStart). The App Remote SDK's connect() isn't safe against
+     * overlapping calls — a second call tears down the first's in-flight handshake, which
+     * surfaces as SpotifyConnectionTerminatedException on one of the two callbacks. Guard
+     * against that here rather than trying to coordinate every call site.
+     */
     fun connect(onConnected: () -> Unit, onFailure: (String) -> Unit) {
+        if (isConnected) {
+            onConnected()
+            return
+        }
+        if (connecting) return
+        connecting = true
+
         val params = ConnectionParams.Builder(SpotifyAuthManager.CLIENT_ID)
             .setRedirectUri(SpotifyAuthManager.REDIRECT_URI)
             .showAuthView(true)
@@ -45,11 +60,13 @@ class SpotifyPlaybackManager(
 
         SpotifyAppRemote.connect(context, params, object : Connector.ConnectionListener {
             override fun onConnected(remote: SpotifyAppRemote) {
+                connecting = false
                 appRemote = remote
                 onConnected()
             }
 
             override fun onFailure(throwable: Throwable) {
+                connecting = false
                 appRemote = null
                 // The SDK often surfaces a null-message throwable ("Unknown Spotify error"
                 // downstream) — the exception's class name is what actually pins down the cause.
@@ -62,6 +79,7 @@ class SpotifyPlaybackManager(
     fun disconnect() {
         appRemote?.let { SpotifyAppRemote.disconnect(it) }
         appRemote = null
+        connecting = false
     }
 
     suspend fun getCurrentTrack(): TrackInfo? = suspendCancellableCoroutine { cont ->

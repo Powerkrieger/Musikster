@@ -30,6 +30,7 @@ local.properties
 /*.png
 /*.svg
 /*.docx
+/pictures/
 
 # Release signing keystore — private key material, never commit. GitHub Actions
 # gets its own copy via the KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD

@@ -10,10 +10,11 @@ What it does:
      applying any corrections from overrides.csv.
   4. Writes deck.json straight into app/src/main/assets/ — rebuild/reinstall
      the app afterwards to pick it up.
-  5. Renders a printable A4 PDF: standardized QR-code front sheets (each QR
-     code has scripts/face.png composited into its center, if present)
-     alternating with pastel-gradient title/artist/year back sheets, sized
-     for a 3x4 duplex print job.
+  5. Renders two printable A4 PDFs: the deck (standardized QR-code front
+     sheets — each QR code has scripts/face.png composited into its
+     center, if present — alternating with green/blue-gradient title/artist/
+     year back sheets, sized for a 3x4 duplex print job) and a separate line
+     sheet (the cutting guide, printed once on plain paper).
 
 Usage:
     cd scripts
@@ -51,6 +52,8 @@ OVERRIDES_CSV = Path(__file__).resolve().parent / "overrides.csv"
 FACE_PHOTO_PATH = Path(__file__).resolve().parent / "face.png"
 OUTPUT_DIR = REPO_ROOT / "deck_output"
 OUTPUT_PDF = OUTPUT_DIR / "musikster_deck.pdf"
+OUTPUT_LINE_SHEET_PDF = OUTPUT_DIR / "musikster_line_sheet.pdf"
+OUTPUT_COMBINED_PDF = OUTPUT_DIR / "musikster_deck_with_line_sheet.pdf"
 
 REDIRECT_PORT = 8927
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/callback"
@@ -64,9 +67,15 @@ CARDS_PER_PAGE = CARDS_PER_ROW * CARDS_PER_COL
 PAGE_WIDTH, PAGE_HEIGHT = 595, 842  # A4 portrait, points at 72dpi
 MARGIN = 24
 
-# Pastel yellow -> pink diagonal gradient, matching the card-design reference doc.
-GRADIENT_TOP_LEFT = (247, 231, 130)
-GRADIENT_BOTTOM_RIGHT = (236, 68, 130)
+# Green -> blue diagonal gradient, matching the card-design reference doc. A middle
+# stop (rather than a plain 2-color lerp) keeps green as a real band across the
+# card instead of just a sliver in the corner, so the two colors read as evenly
+# balanced rather than blue dominating.
+GRADIENT_STOPS = [
+    (72, 209, 121),   # green
+    (46, 176, 155),   # green-teal midpoint
+    (46, 108, 214),   # blue
+]
 
 
 def read_client_id() -> str:
@@ -350,23 +359,56 @@ def generate_pdf(cards: list[dict]) -> None:
     gradient_reader = ImageReader(_gradient_image())
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    c = pdfcanvas.Canvas(str(OUTPUT_PDF), pagesize=(PAGE_WIDTH, PAGE_HEIGHT))
 
+    # Printed on plain paper, not the card stock: card sheets carry no cut lines
+    # of their own (duplex-print misregistration made them land crooked against
+    # the actual cut), so this sheet is the one source of truth to cut against —
+    # lay a printed card sheet under it and cut along its lines. Kept as its own
+    # PDF (rather than a leading page of the deck) since it's printed once on
+    # plain paper, not duplexed onto the card stock like the rest.
+    line_sheet = pdfcanvas.Canvas(str(OUTPUT_LINE_SHEET_PDF), pagesize=(PAGE_WIDTH, PAGE_HEIGHT))
+    _draw_cutting_guide_page(line_sheet, cell_w, cell_h)
+    line_sheet.showPage()
+    line_sheet.save()
+
+    deck = pdfcanvas.Canvas(str(OUTPUT_PDF), pagesize=(PAGE_WIDTH, PAGE_HEIGHT))
+    _draw_deck_pages(deck, cards, cell_w, cell_h, gradient_reader)
+    deck.save()
+
+    # Same deck pages plus the cutting guide appended as a last page, for anyone
+    # who'd rather print/share one file than juggle two.
+    combined = pdfcanvas.Canvas(str(OUTPUT_COMBINED_PDF), pagesize=(PAGE_WIDTH, PAGE_HEIGHT))
+    _draw_deck_pages(combined, cards, cell_w, cell_h, gradient_reader)
+    _draw_cutting_guide_page(combined, cell_w, cell_h)
+    combined.showPage()
+    combined.save()
+
+
+def _draw_deck_pages(c, cards, cell_w, cell_h, gradient_reader) -> None:
     for page_cards in _chunk(cards, CARDS_PER_PAGE):
         # Front (QR side): standardized plain white background — only the QR differs card to card.
         _draw_page(c, page_cards, cell_w, cell_h, None, _draw_front_cell)
         c.showPage()
 
-        # Back (answer side): the pastel gradient card design.
+        # Back (answer side): the gradient card design.
         mirrored = [card for row in _chunk(page_cards, CARDS_PER_ROW) for card in reversed(row)]
         _draw_page(c, mirrored, cell_w, cell_h, gradient_reader, _draw_back_cell)
         c.showPage()
 
-    c.save()
-
 
 def _chunk(items: list, size: int) -> list[list]:
     return [items[i:i + size] for i in range(0, len(items), size)]
+
+
+def _gradient_color(t: float) -> tuple[int, int, int]:
+    """t in [0, 1] across GRADIENT_STOPS, interpolating piecewise between
+    consecutive stops."""
+    segments = len(GRADIENT_STOPS) - 1
+    pos = min(t, 1.0) * segments
+    seg = min(int(pos), segments - 1)
+    local_t = pos - seg
+    a, b = GRADIENT_STOPS[seg], GRADIENT_STOPS[seg + 1]
+    return tuple(int(a[i] + (b[i] - a[i]) * local_t) for i in range(3))
 
 
 def _gradient_image(size=800):
@@ -374,11 +416,10 @@ def _gradient_image(size=800):
 
     img = PILImage.new("RGB", (size, size))
     px = img.load()
-    tl, br = GRADIENT_TOP_LEFT, GRADIENT_BOTTOM_RIGHT
     for y in range(size):
         for x in range(size):
             t = (x + y) / (2 * size)
-            px[x, y] = tuple(int(tl[i] + (br[i] - tl[i]) * t) for i in range(3))
+            px[x, y] = _gradient_color(t)
     return img
 
 
@@ -391,8 +432,21 @@ def _draw_page(c, page_cards, cell_w, cell_h, background, draw_cell) -> None:
         left = MARGIN + col * cell_w
         # PDF y-axis is bottom-up; row 0 must be the top row.
         top = PAGE_HEIGHT - MARGIN - (row + 1) * cell_h
-        _draw_cut_guide(c, left, top, cell_w, cell_h)
         draw_cell(c, card, left, top, cell_w, cell_h)
+
+
+def _draw_cutting_guide_page(c, cell_w, cell_h) -> None:
+    c.setFillColorRGB(0.3, 0.3, 0.3)
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(
+        PAGE_WIDTH / 2, PAGE_HEIGHT - MARGIN / 2,
+        "Cutting guide — lay a printed sheet underneath and cut along these lines",
+    )
+    for row in range(CARDS_PER_COL):
+        for col in range(CARDS_PER_ROW):
+            left = MARGIN + col * cell_w
+            top = PAGE_HEIGHT - MARGIN - (row + 1) * cell_h
+            _draw_cut_guide(c, left, top, cell_w, cell_h)
 
 
 def _draw_cut_guide(c, left, top, w, h) -> None:
@@ -405,13 +459,9 @@ def _draw_front_cell(c, card, left, top, w, h) -> None:
     from reportlab.lib.utils import ImageReader
 
     qr_img = _qr_with_face(card["cardId"])
-    qr_size = min(w, h) * 0.72
+    qr_size = min(w, h) * 0.78
     cx, cy = left + w / 2, top + h / 2
-    c.drawImage(ImageReader(qr_img), cx - qr_size / 2, cy - qr_size / 2 + 3, width=qr_size, height=qr_size)
-
-    c.setFillColorRGB(0.6, 0.6, 0.6)
-    c.setFont("Helvetica", 8)
-    c.drawCentredString(cx, top + 8, f"#{card['cardId']}")
+    c.drawImage(ImageReader(qr_img), cx - qr_size / 2, cy - qr_size / 2, width=qr_size, height=qr_size)
 
 
 QR_VERSION = 6  # fixed at 41x41 modules — far finer than "001".."101" needs on its own,
@@ -491,16 +541,17 @@ def _draw_back_cell(c, card, left, top, w, h) -> None:
     y = top + h - padding - 13
     y = _draw_wrapped(c, card["name"], cx, y, max_width, "Helvetica-Bold", 13, (0, 0, 0))
     y -= 4
-    _draw_wrapped(c, card["artist"], cx, y, max_width, "Helvetica", 11, (0.27, 0.27, 0.27))
+    y = _draw_wrapped(c, card["artist"], cx, y, max_width, "Helvetica", 11, (0.27, 0.27, 0.27))
 
+    # Year fills the rest of the cell below the title/artist block, centered
+    # in that remaining band rather than pinned to the bottom edge.
     year_text = str(card["year"]) if card["year"] else "?"
+    year_size = 36
     c.setFillColorRGB(0, 0, 0)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawCentredString(cx, top + padding + 14, year_text)
-
-    c.setFillColorRGB(0.6, 0.6, 0.6)
-    c.setFont("Helvetica", 8)
-    c.drawCentredString(cx, top + padding + 2, f"#{card['cardId']}")
+    c.setFont("Helvetica-Bold", year_size)
+    band_top, band_bottom = y, top + padding
+    year_y = (band_top + band_bottom) / 2 - year_size * 0.32
+    c.drawCentredString(cx, year_y, year_text)
 
 
 def _draw_wrapped(c, text, cx, start_y, max_width, font, size, rgb) -> float:
@@ -560,9 +611,11 @@ def main() -> None:
     write_deck_json(playlist_id, cards)
     print(f"Wrote {ASSETS_DECK_JSON.relative_to(REPO_ROOT)} — rebuild/reinstall the app to pick it up.")
 
-    print("Laying out printable PDF…")
+    print("Laying out printable PDFs…")
     generate_pdf(cards)
+    print(f"Wrote {OUTPUT_LINE_SHEET_PDF.relative_to(REPO_ROOT)} — print once on plain paper, cut guide only.")
     print(f"Wrote {OUTPUT_PDF.relative_to(REPO_ROOT)} — print a single page first and check alignment (see README.md).")
+    print(f"Wrote {OUTPUT_COMBINED_PDF.relative_to(REPO_ROOT)} — same deck with the cut guide appended as a last page.")
 
 
 if __name__ == "__main__":

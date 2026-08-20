@@ -77,14 +77,17 @@ uv run build_deck.py <playlist URL or ID>
    where `key` is either the Spotify track id or `Song Name|Artist Name`) and rerun.
 3. It writes **`app/src/main/assets/deck.json`** directly — this is what ships inside the APK, so
    **rebuild and reinstall the app** after running the script to pick up a new/changed deck.
-4. It renders a printable PDF to `deck_output/musikster_deck.pdf`. Print it, then cut the
-   cards out (see Printing notes below).
+4. It renders three printable PDFs: `deck_output/musikster_deck.pdf` (the card front/back
+   sheets), `deck_output/musikster_line_sheet.pdf` (the cutting guide, printed once on plain
+   paper), and `deck_output/musikster_deck_with_line_sheet.pdf` (the deck with the cut guide
+   appended as its last page, for sharing/printing as a single file). Print the deck, then cut the
+   cards out against the line sheet (see Printing notes below).
 
 **Card design:** the QR-code (front) side is standardized — plain white, only the QR code itself
 changes card to card. Drop a square-ish photo at `scripts/face.png` and it's composited
 into the center of every QR code (high error-correction is used so the code still scans with the
 photo covering the middle). Without that file, the QR is plain. The answer (back) side keeps the
-pastel yellow-to-pink gradient with title/artist/year.
+green-to-blue gradient with title/artist/year.
 
 Because the deck now lives in the APK's assets, reinstalling the app (same build) restores it —
 there's no separate backup step needed anymore.
@@ -127,8 +130,10 @@ pick up the additions.
 
 ## Printing notes
 
-- Cards print as a 3×4 grid per A4 page (12 cards/page), with light gray cut guides. Front
-  (QR) sheets are plain white; back (answer) sheets use the pastel yellow-to-pink gradient.
+- Cards print as a 3×4 grid per A4 page (12 cards/page). Front (QR) sheets are plain white; back
+  (answer) sheets use the green-to-blue gradient. `musikster_line_sheet.pdf` is a single
+  page of light gray cut guides at the same grid positions — print it once on plain paper and lay
+  each printed card sheet underneath it to cut against.
 - Back sheets have their card columns mirrored, so a standard duplex print job set to
   **"flip on long edge"** should line up each card's QR side with its answer side once cut out.
   **Print a single page first** and check alignment before committing to the whole deck — this

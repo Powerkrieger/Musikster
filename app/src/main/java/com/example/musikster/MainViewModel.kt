@@ -108,6 +108,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onAuthUrlConsumed() { _authUrl.value = null }
 
+    /** Refreshes the access token if it's expired, then connects App Remote if that leaves
+     * us authenticated — used from Activity.onStart() instead of the raw isAuthenticated()
+     * check, so a session that expired while the app was backgrounded reconnects silently
+     * instead of forcing the user back through the Spotify login screen. */
+    fun reconnectAppRemote(onConnected: () -> Unit, onFailure: (String) -> Unit) {
+        viewModelScope.launch {
+            if (authManager.refreshTokenIfNeeded() && authManager.isAuthenticated()) {
+                if (_appMode.value !is AppMode.Home && _appMode.value !is AppMode.ScanPlay) {
+                    _appMode.value = AppMode.Home
+                }
+                playbackManager.connect(onConnected, onFailure)
+            }
+        }
+    }
+
     fun onAppRemoteConnected() {
         _isAppRemoteConnected.value = true
     }

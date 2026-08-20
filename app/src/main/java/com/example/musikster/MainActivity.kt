@@ -62,12 +62,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (viewModel.authManager.isAuthenticated()) {
-            viewModel.playbackManager.connect(
-                onConnected = { viewModel.onAppRemoteConnected() },
-                onFailure = { error -> viewModel.onAppRemoteFailure(error) }
-            )
-        }
+        viewModel.reconnectAppRemote(
+            onConnected = { viewModel.onAppRemoteConnected() },
+            onFailure = { error -> viewModel.onAppRemoteFailure(error) }
+        )
     }
 
     override fun onStop() {

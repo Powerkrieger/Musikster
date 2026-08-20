@@ -138,6 +138,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearError() { _errorMessage.value = null }
 
+    /** Resets the Spotify connection/auth state only — leaves the imported deck alone. For
+     * troubleshooting a stuck or errored Spotify connection without needing to clear the
+     * app's storage (which would also wipe the imported deck, see DeckRepository), forcing
+     * a full deck re-import along with the re-login. */
+    fun logoutSpotify() {
+        playbackManager.disconnect()
+        authManager.clearTokens()
+        _isAppRemoteConnected.value = false
+        _errorMessage.value = null
+        _appMode.value = AppMode.NotConnected
+    }
+
     fun goHome() {
         playbackManager.pause()
         scanPlay.retryScanning()

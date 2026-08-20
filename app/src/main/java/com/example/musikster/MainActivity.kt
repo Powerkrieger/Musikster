@@ -135,7 +135,8 @@ fun MusiksterApp(viewModel: MainViewModel) {
                         // inconsistent about the MIME type they report for .gz, so a narrower
                         // filter can hide a valid deck.json.gz. DeckRepository validates content.
                         importDeckLauncher.launch("*/*")
-                    }
+                    },
+                    onLogoutSpotify = { viewModel.logoutSpotify() }
                 )
                 is AppMode.ScanPlay -> ScanPlayScreen(viewModel.scanPlay)
             }

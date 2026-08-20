@@ -11,6 +11,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,7 +26,8 @@ fun HomeScreen(
     deckCardCount: Int?,
     deckImportMessage: String?,
     onPlay: () -> Unit,
-    onImportDeck: () -> Unit
+    onImportDeck: () -> Unit,
+    onLogoutSpotify: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -52,6 +54,12 @@ fun HomeScreen(
         if (errorMessage != null) {
             Spacer(Modifier.height(8.dp))
             Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        if (!isRemoteConnected) {
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onLogoutSpotify) {
+                Text("Log Out of Spotify", style = MaterialTheme.typography.bodySmall)
+            }
         }
 
         Spacer(Modifier.height(32.dp))

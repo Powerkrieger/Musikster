@@ -539,7 +539,7 @@ def _draw_back_cell(c, card, left, top, w, h) -> None:
     cx = left + w / 2
 
     y = top + h - padding - 13
-    y = _draw_wrapped(c, card["name"], cx, y, max_width, "Helvetica-Bold", 13, (0, 0, 0))
+    y = _draw_title(c, card["name"], cx, y, max_width, "Helvetica-Bold", 13, (0, 0, 0))
     y -= 4
     y = _draw_wrapped(c, card["artist"], cx, y, max_width, "Helvetica", 11, (0.27, 0.27, 0.27))
 
@@ -554,25 +554,54 @@ def _draw_back_cell(c, card, left, top, w, h) -> None:
     c.drawCentredString(cx, year_y, year_text)
 
 
-def _draw_wrapped(c, text, cx, start_y, max_width, font, size, rgb) -> float:
+def _draw_title(c, title, cx, start_y, max_width, font, size, rgb) -> float:
+    """Titles with a parenthetical — '(feat. X)', '(From the Netflix Film ...)',
+    '(Radio Version)', etc — get a forced line break before the '(' so the
+    parenthetical reads as its own line instead of running on from the song
+    name. Only applied when it doesn't cost extra lines versus plain greedy
+    wrapping: a short title like 'Titanium (feat. Sia)' already fits on one
+    line on its own, so forcing a break there would make it worse, not better.
+    """
     c.setFont(font, size)
-    c.setFillColorRGB(*rgb)
+    idx = title.find(" (")
+    if idx != -1:
+        name, citation = title[:idx], title[idx + 1:]
+        natural = _wrap_lines(c, title, font, size, max_width)
+        forced = _wrap_lines(c, name, font, size, max_width) + _wrap_lines(c, citation, font, size, max_width)
+        if len(forced) <= len(natural):
+            return _draw_lines(c, forced, cx, start_y, size, rgb)
+    return _draw_wrapped(c, title, cx, start_y, max_width, font, size, rgb)
+
+
+def _wrap_lines(c, text, font, size, max_width) -> list[str]:
     words = text.split(" ")
+    lines = []
     line = ""
-    y = start_y
-    line_height = size + 3
     for word in words:
         candidate = word if not line else f"{line} {word}"
         if c.stringWidth(candidate, font, size) > max_width and line:
-            c.drawCentredString(cx, y, line)
-            y -= line_height
+            lines.append(line)
             line = word
         else:
             line = candidate
     if line:
+        lines.append(line)
+    return lines
+
+
+def _draw_lines(c, lines, cx, start_y, size, rgb) -> float:
+    c.setFillColorRGB(*rgb)
+    y = start_y
+    line_height = size + 3
+    for line in lines:
         c.drawCentredString(cx, y, line)
         y -= line_height
     return y
+
+
+def _draw_wrapped(c, text, cx, start_y, max_width, font, size, rgb) -> float:
+    c.setFont(font, size)
+    return _draw_lines(c, _wrap_lines(c, text, font, size, max_width), cx, start_y, size, rgb)
 
 
 # ---------------------------------------------------------------------------

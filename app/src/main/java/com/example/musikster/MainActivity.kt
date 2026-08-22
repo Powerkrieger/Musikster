@@ -3,6 +3,7 @@ package com.example.musikster
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -36,6 +37,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.example.musikster.ui.theme.MusiksterTheme
 
 class MainActivity : ComponentActivity() {
@@ -46,12 +50,36 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // The phone lies face-up on the table while a song plays, and Spotify's own media
+        // notification spells out the track name — the very thing players are supposed to guess.
+        // An app can't suppress another app's notification, so instead we keep it out of sight:
+        // no status bar to show it in (a swipe from the edge still reveals the bars), and the
+        // screen stays awake so the phone never locks into a lock screen showing the same
+        // media card. (Turning Spotify's notifications off in Android's settings does *not*
+        // work — One UI keeps showing the media card, which the MediaSession drives rather than
+        // the notification permission. See README's "Hiding the song title".)
+        hideSystemBars()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         handleRedirectIntent(intent)
 
         setContent {
             MusiksterTheme {
                 MusiksterApp(viewModel)
             }
+        }
+    }
+
+    /** Returning from Spotify (login, or the app itself) brings the system bars back. */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 

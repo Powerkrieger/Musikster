@@ -126,6 +126,21 @@ pick up the additions.
    answer — the app screen never shows it.
 4. **Scan Next Card** to continue.
 
+### Hiding the song title
+
+The app itself never shows the answer, but *Spotify* does: while a track plays, the Spotify app
+posts its own media notification naming the song, which is exactly what players are meant to
+guess. No app can suppress another app's notification, so the fix is to keep it off-screen:
+in `MainActivity.onCreate`, the game runs full-screen with the system bars hidden and the screen
+kept awake — there's no status bar for the notification to appear in, and the phone never times
+out into a lock screen showing the same media card. Swiping in from the screen edge still reveals
+the bars, so this hides the title rather than locking the phone down.
+
+Turning Spotify's notifications off in Android settings (Settings → Notifications → App
+notifications → Spotify) looks like the cleaner fix, but it **doesn't work** — tried on the
+Samsung/One UI game phone and the media card kept showing. It's driven by the MediaSession, not
+by the app's notification permission, so the in-app full-screen approach is what actually does it.
+
 ---
 
 ## Printing notes

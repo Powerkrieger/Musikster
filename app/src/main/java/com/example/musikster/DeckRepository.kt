@@ -19,7 +19,25 @@ class DeckRepository(private val context: Context) {
     private val importedFile: File
         get() = File(context.filesDir, "deck.json")
 
+    // The deck only changes through importDeck(), so parse it once and hand out the same
+    // instance — loadDeck()/findCard() are called from the UI thread on every scan.
+    @Volatile
+    private var cache: Deck? = null
+    @Volatile
+    private var cacheLoaded = false
+
     fun loadDeck(): Deck? {
+        if (cacheLoaded) return cache
+        synchronized(this) {
+            if (!cacheLoaded) {
+                cache = readDeck()
+                cacheLoaded = true
+            }
+        }
+        return cache
+    }
+
+    private fun readDeck(): Deck? {
         val json = readImported() ?: readBundled() ?: return null
         return try {
             Deck.fromJson(JSONObject(json))
@@ -39,8 +57,12 @@ class DeckRepository(private val context: Context) {
         return try {
             val json = (if (isGzip(bytes)) GZIPInputStream(bytes.inputStream()) else bytes.inputStream())
                 .bufferedReader().use { it.readText() }
-            Deck.fromJson(JSONObject(json))
+            val deck = Deck.fromJson(JSONObject(json))
             importedFile.writeText(json)
+            synchronized(this) {
+                cache = deck
+                cacheLoaded = true
+            }
             true
         } catch (e: Exception) {
             false

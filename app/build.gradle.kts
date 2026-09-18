@@ -82,7 +82,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.mlkit.barcode.scanning)
+    // QR decoding: ZXing core is plain Java with no Google Play services dependency.
+    implementation(libs.zxing.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)

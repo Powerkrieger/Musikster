@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -19,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,10 +38,13 @@ import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.NotFoundException
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import java.util.concurrent.Executors
 
 /** Switches between the camera scanner and the (camera-free) playback controls. */
@@ -124,18 +129,27 @@ private fun CameraPreviewWithScanner(onScanned: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val onScannedState = rememberUpdatedState(onScanned)
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+
+    // Camera use cases are bound to the Activity lifecycle, which outlives this composable
+    // (the playback screen replaces it while the Activity keeps running) — so unbind and stop
+    // the analysis thread ourselves when the scanner goes away.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (cameraProviderFuture.isDone) {
+                runCatching { cameraProviderFuture.get().unbindAll() }
+            }
+            cameraExecutor.shutdown()
+        }
+    }
 
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
             val previewView = PreviewView(ctx)
-            val cameraExecutor = Executors.newSingleThreadExecutor()
-            val scannerOptions = BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build()
-            val scanner = BarcodeScanning.getClient(scannerOptions)
+            val mainExecutor = ContextCompat.getMainExecutor(ctx)
 
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
 
@@ -146,19 +160,11 @@ private fun CameraPreviewWithScanner(onScanned: (String) -> Unit) {
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
-                analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    val mediaImage = imageProxy.image
-                    if (mediaImage == null) {
-                        imageProxy.close()
-                        return@setAnalyzer
-                    }
-                    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                    scanner.process(image)
-                        .addOnSuccessListener { barcodes ->
-                            barcodes.firstOrNull()?.rawValue?.let { onScannedState.value(it) }
-                        }
-                        .addOnCompleteListener { imageProxy.close() }
+                val analyzer = QrCodeAnalyzer { text ->
+                    // ViewModel state is touched on the main thread only.
+                    mainExecutor.execute { onScannedState.value(text) }
                 }
+                analysis.setAnalyzer(cameraExecutor, analyzer)
 
                 try {
                     cameraProvider.unbindAll()
@@ -172,9 +178,44 @@ private fun CameraPreviewWithScanner(onScanned: (String) -> Unit) {
                     // Camera binding can fail if the lifecycle is already destroyed by the
                     // time this listener runs (e.g. quick navigation away) — nothing to do.
                 }
-            }, ContextCompat.getMainExecutor(ctx))
+            }, mainExecutor)
 
             previewView
         }
     )
+}
+
+/**
+ * Decodes QR codes from CameraX frames with ZXing (plain Java, so no Google Play services on the
+ * device or in the dependency tree). Only the Y (luminance) plane of the YUV_420_888 frame is
+ * needed; QR decoding is rotation-invariant, so the frame is fed in sensor orientation as is.
+ */
+private class QrCodeAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
+
+    private val reader = MultiFormatReader().apply {
+        setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)))
+    }
+
+    override fun analyze(image: ImageProxy) {
+        try {
+            val plane = image.planes[0]
+            val rowStride = plane.rowStride
+            // Rows may be padded past the image width; copy into a buffer sized for the stride
+            // so ZXing's row addressing never reads past the end.
+            val luminance = ByteArray(rowStride * image.height)
+            plane.buffer.let { it.get(luminance, 0, minOf(it.remaining(), luminance.size)) }
+            val source = PlanarYUVLuminanceSource(
+                luminance, rowStride, image.height, 0, 0, image.width, image.height, false
+            )
+            val result = reader.decodeWithState(BinaryBitmap(HybridBinarizer(source)))
+            result.text?.takeIf { it.isNotEmpty() }?.let(onResult)
+        } catch (e: NotFoundException) {
+            // No QR code in this frame — the normal case.
+        } catch (e: Exception) {
+            // Malformed frame or decoder hiccup; skip the frame.
+        } finally {
+            reader.reset()
+            image.close()
+        }
+    }
 }

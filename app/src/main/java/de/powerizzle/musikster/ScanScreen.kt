@@ -1,4 +1,4 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -90,9 +90,9 @@ private fun CameraScanScreen(hasDeck: Boolean, onScanned: (String) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("No deck yet", style = MaterialTheme.typography.titleLarge)
+            Text("No deck in play", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
-            Text("Go back Home and use \"Import Deck\" to load a deck.json file first.", textAlign = TextAlign.Center)
+            Text("Go back Home and switch a deck on, or use \"Import Deck\" to load a deck.json file.", textAlign = TextAlign.Center)
         }
         return
     }

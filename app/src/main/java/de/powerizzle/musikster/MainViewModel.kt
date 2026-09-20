@@ -1,14 +1,16 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.musikster.ui.theme.CardBackgroundPalette
+import de.powerizzle.musikster.ui.theme.CardBackgroundPalette
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed class AppMode {
     object NotConnected : AppMode()
@@ -51,11 +53,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    private val _deckCardCount = MutableStateFlow(deckRepository.loadDeck()?.cards?.size)
-    val deckCardCount: StateFlow<Int?> = _deckCardCount.asStateFlow()
+    /** Every deck the app knows about (bundled + imported), in Home-screen order. */
+    private val _decks = MutableStateFlow<List<LoadedDeck>>(emptyList())
+    val decks: StateFlow<List<LoadedDeck>> = _decks.asStateFlow()
+
+    /** Card ids shared by two enabled decks — a warning on Home, see DeckRepository. */
+    private val _conflictingCardIds = MutableStateFlow<Set<String>>(emptySet())
+    val conflictingCardIds: StateFlow<Set<String>> = _conflictingCardIds.asStateFlow()
 
     private val _deckImportMessage = MutableStateFlow<String?>(null)
     val deckImportMessage: StateFlow<String?> = _deckImportMessage.asStateFlow()
+
+    init {
+        refreshDecks()
+    }
+
+    private fun refreshDecks() {
+        viewModelScope.launch {
+            val (decks, conflicts) = withContext(Dispatchers.IO) {
+                deckRepository.loadDecks() to deckRepository.conflictingCardIds()
+            }
+            _decks.value = decks
+            _conflictingCardIds.value = conflicts
+        }
+    }
 
     // A new two-color gradient (packed ARGB Longs) is picked from this palette at the start of
     // each round, mirroring QuickMusicQuiz's per-round background color.
@@ -73,22 +94,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Reads [uri] (from a system file picker) and, if it's a valid deck.json — plain or
-     * gzip-compressed (a plain .json.gz, not a .zip) — makes it the active deck.
+     * gzip-compressed (a plain .json.gz, not a .zip) — adds it to the decks in play.
+     * Importing a deck with the same id as an existing one replaces that copy.
      */
     fun importDeck(uri: Uri) {
         viewModelScope.launch {
-            val bytes = try {
-                getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            } catch (e: Exception) {
-                null
+            val result = withContext(Dispatchers.IO) {
+                val bytes = try {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                } catch (e: Exception) {
+                    null
+                }
+                if (bytes == null) DeckImportResult.Invalid else deckRepository.importDeck(bytes)
             }
-            val imported = bytes != null && deckRepository.importDeck(bytes)
-            _deckImportMessage.value = if (imported) {
-                "Deck imported!"
-            } else {
-                "Couldn't read that file — make sure it's a deck.json (or deck.json.gz) file."
+            _deckImportMessage.value = when (result) {
+                is DeckImportResult.Success -> {
+                    val verb = if (result.replacedExisting) "updated" else "added"
+                    "${result.deck.name} $verb — ${result.deck.cards.size} cards."
+                }
+                DeckImportResult.Invalid ->
+                    "Couldn't read that file — make sure it's a deck.json (or deck.json.gz) file."
             }
-            _deckCardCount.value = deckRepository.loadDeck()?.cards?.size
+            refreshDecks()
+        }
+    }
+
+    fun setDeckEnabled(deckId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { deckRepository.setEnabled(deckId, enabled) }
+            refreshDecks()
+        }
+    }
+
+    fun removeDeck(deckId: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { deckRepository.removeImported(deckId) }
+            _deckImportMessage.value = null
+            refreshDecks()
         }
     }
 
@@ -138,9 +180,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearError() { _errorMessage.value = null }
 
-    /** Resets the Spotify connection/auth state only — leaves the imported deck alone. For
+    /** Resets the Spotify connection/auth state only — leaves the imported decks alone. For
      * troubleshooting a stuck or errored Spotify connection without needing to clear the
-     * app's storage (which would also wipe the imported deck, see DeckRepository), forcing
+     * app's storage (which would also wipe the imported decks, see DeckRepository), forcing
      * a full deck re-import along with the re-login. */
     fun logoutSpotify() {
         playbackManager.disconnect()

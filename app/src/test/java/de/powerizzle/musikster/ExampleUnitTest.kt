@@ -1,4 +1,4 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import org.junit.Test
 

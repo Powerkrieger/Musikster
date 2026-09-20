@@ -1,4 +1,4 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import android.content.Intent
 import android.net.Uri
@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.musikster.ui.theme.MusiksterTheme
+import de.powerizzle.musikster.ui.theme.MusiksterTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -121,7 +121,8 @@ fun MusiksterApp(viewModel: MainViewModel) {
     val authUrl by viewModel.authUrl.collectAsState()
     val isRemoteConnected by viewModel.isAppRemoteConnected.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    val deckCardCount by viewModel.deckCardCount.collectAsState()
+    val decks by viewModel.decks.collectAsState()
+    val conflictingCardIds by viewModel.conflictingCardIds.collectAsState()
     val deckImportMessage by viewModel.deckImportMessage.collectAsState()
     val backgroundGradient by viewModel.backgroundGradient.collectAsState()
 
@@ -154,9 +155,12 @@ fun MusiksterApp(viewModel: MainViewModel) {
                 is AppMode.Home -> HomeScreen(
                     isRemoteConnected = isRemoteConnected,
                     errorMessage = errorMessage,
-                    deckCardCount = deckCardCount,
+                    decks = decks,
+                    conflictingCardIds = conflictingCardIds,
                     deckImportMessage = deckImportMessage,
                     onPlay = { viewModel.openScanPlay() },
+                    onSetDeckEnabled = { id, enabled -> viewModel.setDeckEnabled(id, enabled) },
+                    onRemoveDeck = { id -> viewModel.removeDeck(id) },
                     onImportDeck = {
                         viewModel.clearDeckImportMessage()
                         // "*/*" rather than "application/json": file pickers/providers are

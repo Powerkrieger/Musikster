@@ -1,5 +1,9 @@
 name: Build Release APK
 
+# people/ (the per-person config) is gitignored, so this only ever builds the generic
+# "musikster" flavor — a deck-less app that imports any deck.json. Personal flavors are
+# built locally; see README.md "Adding a person".
+
 on:
   push:
     branches: [ main ]
@@ -49,10 +53,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Musikster-${{ github.sha }}
-          path: app/build/outputs/apk/release/musikster-release.apk
+          path: app/build/outputs/apk/*/release/musikster-*-release.apk
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/musikster-release.apk
+          files: app/build/outputs/apk/*/release/musikster-*-release.apk

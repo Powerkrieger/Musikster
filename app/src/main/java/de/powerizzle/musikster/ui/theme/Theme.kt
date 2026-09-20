@@ -1,4 +1,4 @@
-package com.example.musikster.ui.theme
+package de.powerizzle.musikster.ui.theme
 
 import android.app.Activity
 import android.os.Build

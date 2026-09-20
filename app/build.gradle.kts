@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 import java.util.Properties
 
 plugins {
@@ -11,11 +12,69 @@ val localProperties = Properties().apply {
 }
 
 base {
+    // Flavor name is inserted automatically: musikster-nils-release.apk etc.
     archivesName.set("musikster")
 }
 
+/**
+ * One product flavor per recipient, discovered from people/<slug>/person.json (see
+ * README.md "Adding a person"). The slug doubles as the flavor name and the deck id.
+ * Everything about a person lives in that one directory — config, photo, the deck.json
+ * scripts/build_deck.py generates (people/<slug>/assets/, wired in below as the flavor's
+ * assets dir so it gets bundled) and the printable PDFs — so it can be its own private
+ * git repo. Adding someone is a new directory rather than a Gradle edit.
+ *
+ * people/ is gitignored (it's personal data and the repo is public), so a fresh clone or
+ * CI has no people at all. In that case a single generic "musikster" flavor is built: no
+ * greeting, no bundled deck, any deck can be imported from Home. Personal builds are
+ * made locally, where people/ exists.
+ */
+data class Person(
+    val slug: String,
+    val appName: String,
+    val greeting: String,
+    val palette: List<String>,
+    /** people/<slug>, or null for the generic fallback flavor. */
+    val dir: File?,
+)
+
+fun loadPeople(): List<Person> {
+    val peopleDir = rootProject.file("people")
+    val dirs = peopleDir.listFiles { f -> f.isDirectory && File(f, "person.json").isFile }
+        ?.sortedBy { it.name } ?: emptyList()
+    if (dirs.isEmpty()) {
+        logger.lifecycle("No people/<slug>/person.json found — building the generic 'musikster' flavor only.")
+        return listOf(Person(slug = "musikster", appName = "Musikster", greeting = "", palette = emptyList(), dir = null))
+    }
+    return dirs.map { dir ->
+        val slug = dir.name
+        check(slug.matches(Regex("[a-z][a-z0-9]*"))) {
+            "people/$slug: slug must be lowercase letters/digits (it becomes a Gradle flavor name)."
+        }
+        @Suppress("UNCHECKED_CAST")
+        val json = JsonSlurper().parse(File(dir, "person.json")) as Map<String, Any?>
+        Person(
+            slug = slug,
+            appName = json["appName"] as? String ?: "${json["name"]}'s Musikster",
+            greeting = json["greeting"] as? String ?: "",
+            palette = (json["palette"] as? List<*>)?.map { it.toString() } ?: emptyList(),
+            dir = dir,
+        )
+    }
+}
+
+/** Escapes a Kotlin string for use as an Android <string> resource value. */
+fun androidStringResource(value: String): String = value
+    .replace("\\", "\\\\")
+    .replace("'", "\\'")
+    .replace("\"", "\\\"")
+    .replace("\n", "\\n")
+    .replace("&", "&amp;")
+    .replace("<", "&lt;")
+    .replace(">", "&gt;")
+
 android {
-    namespace = "com.example.musikster"
+    namespace = "de.powerizzle.musikster"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -23,7 +82,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.musikster"
+        applicationId = "de.powerizzle.musikster"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -45,6 +104,34 @@ android {
         }
     }
 
+    val people = loadPeople()
+    flavorDimensions += "person"
+    productFlavors {
+        people.forEach { person ->
+            create(person.slug) {
+                dimension = "person"
+                // Deliberately no applicationIdSuffix: every flavor shares the one package
+                // name registered in the Spotify dashboard (package + signing SHA-1), so a new
+                // person doesn't need a new Spotify registration. Trade-off: only one
+                // person's build can be installed on a given phone at a time.
+                resValue("string", "app_name", androidStringResource(person.appName))
+                resValue("string", "greeting", androidStringResource(person.greeting))
+                buildConfigField("String", "PERSON_ID", "\"${person.slug}\"")
+                buildConfigField(
+                    "String", "CARD_PALETTE",
+                    "\"${person.palette.joinToString(",")}\""
+                )
+            }
+        }
+    }
+    sourceSets {
+        people.forEach { person ->
+            // The generated deck.json lives with the rest of the person's data rather than
+            // under app/src/<slug>/, so the whole person is one directory (and one repo).
+            person.dir?.let { getByName(person.slug).assets.srcDir(File(it, "assets")) }
+        }
+    }
+
     buildTypes {
         release {
             signingConfig   = signingConfigs.getByName("release")
@@ -62,6 +149,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        resValues = true // per-flavor app_name/greeting come from resValue() above
     }
 
     defaultConfig {

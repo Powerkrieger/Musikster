@@ -1,4 +1,4 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import android.content.Context
 import android.content.SharedPreferences

@@ -1,0 +1,8 @@
+{
+  "name": "Nils",
+  "appName": "Nils' Musikster",
+  "greeting": "Happy Birthday, Nils! 🎉\nEvery card is one of your favorite songs — good luck building the timeline!",
+  "playlist": "https://open.spotify.com/playlist/...",
+  "palette": ["C2185B", "6A1B9A", "1565C0", "00695C", "E65100", "2E7D32"],
+  "printGradient": [[72, 209, 121], [46, 176, 155], [46, 108, 214]]
+}

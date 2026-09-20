@@ -1,4 +1,4 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +30,7 @@ class ScanPlayViewModel(
 
     private var scanningEnabled = true
 
-    fun hasDeck(): Boolean = deckRepository.loadDeck() != null
+    fun hasDeck(): Boolean = deckRepository.hasPlayableDeck()
 
     /** Called with a QR payload once per physical scan; ignores repeats while a card is loading/playing. */
     fun onCardScanned(cardId: String) {

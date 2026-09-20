@@ -1,4 +1,4 @@
-package com.example.musikster
+package de.powerizzle.musikster
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

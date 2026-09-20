@@ -30,7 +30,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Spotify PKCE auth redirect: musikster://callback?code=... -->
+            <!-- Spotify PKCE auth redirect: musikster://callback?code=... (registered in the
+                 Spotify dashboard, shared by every flavor). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -11,7 +11,7 @@ so there's no reason to duplicate the mesh in the file itself.
 
   uv run make_game_token.py [output.stl]
 
-Defaults to ../deck_output/game_token_A.stl.
+Defaults to ../../stl/game_token_A.stl.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import numpy as np
 import trimesh
 from PIL import Image, ImageDraw, ImageFont
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # --- physical parameters (mm) -----------------------------------------------
 COIN_COUNT = 20                 # how many of these to print — geometry doesn't change with count
@@ -120,7 +120,7 @@ def save_preview(levels: np.ndarray, out_path: Path) -> None:
 
 
 def main() -> None:
-    output_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "deck_output" / "game_token_A.stl"
+    output_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "stl" / "game_token_A.stl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Rasterizing letter {LETTER!r}…")

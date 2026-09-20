@@ -24,12 +24,11 @@ local.properties
 # people/<slug>/ the build falls back to a single generic "Musikster" flavor.
 /people/*
 !/people/person.example.json
-# Pre-restructure output location; PDFs now land in people/<slug>/print/.
-/deck_output/
-
-# Loose working photos/exports for the scripts/*.py coin & plaque pipeline —
+# Loose working photos/exports for the scripts/archive/*.py coin & plaque pipeline —
 # inputs/outputs of a one-off physical-gift run, not source. Point the scripts'
-# CLI args at your own photo to reuse them.
+# CLI args at your own photo to reuse them. /stl/ is where the archived generic
+# box/token generators drop their output.
+/stl/
 /*.jpg
 /*.jpeg
 /*.png

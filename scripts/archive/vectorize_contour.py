@@ -9,7 +9,7 @@ curves with potrace, instead of a jagged pixel-traced edge map. Run with
 
   uv run vectorize_contour.py [input_png] [output.svg]
 
-Defaults to ../contour.png -> ../contour.svg. Also writes a PNG
+Defaults to ../../contour.png -> ../../contour.svg. Also writes a PNG
 preview next to the SVG (rasterized back at high resolution) so it's easy to
 eyeball without opening a vector editor.
 """
@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 import potrace
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 BLACK_LEVEL = 128        # pixels darker than this count as ink
 TURDSIZE = 2             # suppress speckles smaller than this many pixels

@@ -10,7 +10,7 @@ the portrait carries height — the background sits flat at 0. Run with
 
   uv run make_heightmap.py [color_photo] [contrast_photo] [output.png]
 
-Defaults to ../photo.jpg + ../photo-contrast.jpg -> ../heightmap.png.
+Defaults to ../../photo.jpg + ../../photo-contrast.jpg -> ../../heightmap.png.
 The first run downloads rembg's ~1GB segmentation model (cached afterwards).
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ import numpy as np
 from PIL import Image
 from rembg import remove
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # photo-contrast.jpg is a 3-color posterization (black/red/white) plus JPEG
 # ringing noise around the band edges — classifying to the nearest of these

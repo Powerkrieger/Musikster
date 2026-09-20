@@ -8,7 +8,7 @@ instead of the harsher posterized/duotone look. Run with `uv run make_contour.py
 
   uv run make_contour.py [input_image] [output.png]
 
-Defaults to ../photo.jpg -> ../contour.png.
+Defaults to ../../photo.jpg -> ../../contour.png.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Crop (left, top, right, bottom) in source-image pixels, applied before
 # upscaling — trims background clutter that would otherwise show up as stray

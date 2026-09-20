@@ -8,10 +8,10 @@ instead of adding a bump-map relief on top. In the height map, 255 = "cut
 here" and 0 = "leave the coin surface untouched" (see make_heightmap.py's
 inverted output). Run with `uv run make_engraved_coin.py`.
 
-  uv run make_engraved_coin.py [coin.stl] [heightmap.png] [output.stl]
+  uv run make_engraved_coin.py <slug> [coin.stl] [heightmap.png] [output.stl]
 
-Defaults to ../deck_output/coin.stl + ../heightmap_inverted.png
--> ../deck_output/coin_engraved.stl.
+Defaults to ../../people/<slug>/stl/coin.stl + ../../heightmap_inverted.png
+-> ../../people/<slug>/stl/coin_engraved.stl.
 """
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ import numpy as np
 import trimesh
 from PIL import Image
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+PEOPLE_DIR = REPO_ROOT / "people"
 
 PORTRAIT_WIDTH_MM = 24.0   # inset within the coin face — must keep the rectangle's
                             # corners inside the coin's radius (see make_coin.py's note)
@@ -91,9 +92,13 @@ def build_cutter_mesh(levels: np.ndarray, width_mm: float, coin_top_z: float,
 
 
 def main() -> None:
-    coin_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "deck_output" / "coin.stl"
-    heightmap_path = Path(sys.argv[2]) if len(sys.argv) > 2 else REPO_ROOT / "heightmap_inverted.png"
-    output_path = Path(sys.argv[3]) if len(sys.argv) > 3 else REPO_ROOT / "deck_output" / "coin_engraved.stl"
+    if len(sys.argv) < 2:
+        sys.exit("Usage: uv run make_engraved_coin.py <slug> [coin.stl] [heightmap.png] [output.stl]")
+    slug = sys.argv[1]
+    stl_dir = PEOPLE_DIR / slug / "stl"
+    coin_path = Path(sys.argv[2]) if len(sys.argv) > 2 else stl_dir / "coin.stl"
+    heightmap_path = Path(sys.argv[3]) if len(sys.argv) > 3 else REPO_ROOT / "heightmap_inverted.png"
+    output_path = Path(sys.argv[4]) if len(sys.argv) > 4 else stl_dir / "coin_engraved.stl"
     output_path = output_path.resolve()
 
     if coin_path.exists():

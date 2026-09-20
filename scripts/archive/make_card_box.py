@@ -12,7 +12,7 @@ enough to grab even when pushed all the way in.
 
   uv run make_card_box.py
 
-Writes ../deck_output/card_tray.stl, ../deck_output/card_sleeve.stl, and a
+Writes ../../stl/card_tray.stl, ../../stl/card_sleeve.stl, and a
 top/side dimension-check preview PNG. Print the tray floor-down as is; print
 the sleeve rotated 90° so the closed back face sits on the bed and the open
 front faces up — otherwise its top wall is an unsupported bridge across the
@@ -25,8 +25,8 @@ from pathlib import Path
 import numpy as np
 import trimesh
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-OUT_DIR = REPO_ROOT / "deck_output"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+OUT_DIR = REPO_ROOT / "stl"
 
 # --- card stack (mm) ---------------------------------------------------------
 # CARD_W/CARD_H mirror build_deck.py's cell_w/cell_h (182.3pt/198.5pt @ 72dpi).

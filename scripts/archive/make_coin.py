@@ -6,9 +6,9 @@
 Turns a photo into a 3D-printable coin/medallion: a flat circular base with the
 photo embossed into the face as a bas-relief. Run with `uv run make_coin.py`.
 
-  uv run make_coin.py [input_image] [output.stl]
+  uv run make_coin.py <slug> [input_image] [output.stl]
 
-Defaults to ../photo-contrast.jpg -> ../deck_output/coin.stl. Also writes
+Defaults to ../../photo-contrast.jpg -> ../../people/<slug>/stl/coin.stl. Also writes
 a quick shaded-relief preview PNG next to the STL so you can sanity-check the
 result before slicing.
 """
@@ -21,7 +21,8 @@ import numpy as np
 import trimesh
 from PIL import Image, ImageFilter
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+PEOPLE_DIR = REPO_ROOT / "people"
 
 # --- physical parameters (mm) -----------------------------------------------
 COIN_DIAMETER_MM = 40.0
@@ -127,8 +128,11 @@ def save_preview(levels: np.ndarray, out_path: Path) -> None:
 
 
 def main() -> None:
-    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "photo-contrast.jpg"
-    output_path = Path(sys.argv[2]) if len(sys.argv) > 2 else REPO_ROOT / "deck_output" / "coin.stl"
+    if len(sys.argv) < 2:
+        sys.exit("Usage: uv run make_coin.py <slug> [input_image] [output.stl]")
+    slug = sys.argv[1]
+    input_path = Path(sys.argv[2]) if len(sys.argv) > 2 else REPO_ROOT / "photo-contrast.jpg"
+    output_path = Path(sys.argv[3]) if len(sys.argv) > 3 else PEOPLE_DIR / slug / "stl" / "coin.stl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading {input_path} …")

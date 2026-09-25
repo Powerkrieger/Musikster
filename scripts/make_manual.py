@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from datetime import date
 import statistics
 import sys
 import tempfile
@@ -61,7 +62,7 @@ MARGIN = 11 * mm
 INK = HexColor("#1A1A1A")
 MUTED = HexColor("#555555")
 GRID = HexColor("#D9D9D9")
-SIGNATURE_SPACE = 10 * mm  # blank strip under the closing line, for signing by hand
+SIGNATURE_SPACE = 9 * mm  # blank strip under the closing line, for signing by hand
 
 # Labels for the info row (make_overview.py writes them in English to analysis/stats.json).
 STAT_LABELS_DE = {"Cards": "Karten", "Range": "Zeitraum", "Median": "Median", "Std. dev.": "Streuung",
@@ -109,17 +110,24 @@ def deck_years(person) -> list[int]:
     return [c["year"] for c in json.loads(data)["cards"] if c.get("year")]
 
 
-def info_row(person, years: list[int]) -> list[tuple[str, str]]:
+def info_row(person, years: list[int], birth_year: int | None) -> list[tuple[str, str]]:
     """(value, label) tiles for the deck: the analysis' own row when there is one (it also
-    knows English songs and female leads), otherwise what the years alone can tell."""
+    knows English songs and female leads), otherwise what the years alone can tell. With a
+    birth year, "before 2000" becomes "before <the year they were born>" — for a birthday
+    card, how many of the songs are older than the person."""
     stats_file = person.dir / "analysis" / "stats.json"
     if stats_file.exists():
-        return [(s["value"].replace(" yrs", " J."), STAT_LABELS_DE.get(s["label"], s["label"]))
-                for s in json.loads(stats_file.read_text())]
-    return [(str(len(years)), "Karten"), (f"{min(years)}–{max(years)}", "Zeitraum"),
-            (str(int(statistics.median(years))), "Median"),
-            (f"±{round(statistics.pstdev(years))} J.", "Streuung"),
-            (str(sum(y < 2000 for y in years)), "vor 2000")]
+        tiles = [(s["value"].replace(" yrs", " J."), STAT_LABELS_DE.get(s["label"], s["label"]))
+                 for s in json.loads(stats_file.read_text())]
+    else:
+        tiles = [(str(len(years)), "Karten"), (f"{min(years)}–{max(years)}", "Zeitraum"),
+                 (str(int(statistics.median(years))), "Median"),
+                 (f"±{round(statistics.pstdev(years))} J.", "Streuung"),
+                 (str(sum(y < 2000 for y in years)), "vor 2000")]
+    if birth_year:
+        tiles = [(str(sum(y < birth_year for y in years)), f"vor {birth_year}") if label == "vor 2000"
+                 else (value, label) for value, label in tiles]
+    return tiles
 
 
 def qr_png(url: str, out: Path) -> Path:
@@ -173,10 +181,10 @@ def build(slug: str) -> Path:
     pdfmetrics.registerFont(TTFont("NotoSans-Bold", str(FONT_DIR / "NotoSans-Bold.ttf")))
     registerFontFamily("NotoSans", normal="NotoSans", bold="NotoSans-Bold")
 
-    body = ParagraphStyle("body", fontName="NotoSans", fontSize=8.6, leading=11.6,
+    body = ParagraphStyle("body", fontName="NotoSans", fontSize=8.6, leading=11.2,
                           textColor=INK, spaceAfter=3.5)
     head = ParagraphStyle("head", parent=body, fontName="NotoSans-Bold", fontSize=9.6,
-                          leading=12, spaceBefore=4, spaceAfter=1.5)
+                          leading=12, spaceBefore=3, spaceAfter=1.5)
     title = ParagraphStyle("title", parent=body, fontName="NotoSans-Bold", fontSize=15,
                            leading=19, alignment=1, spaceAfter=2)
     sub = ParagraphStyle("sub", parent=body, alignment=1, textColor=MUTED, spaceAfter=6)
@@ -197,10 +205,9 @@ def build(slug: str) -> Path:
         wink_size = 11.5  # pt, a little over the cap height of the closing line
 
         # "Die App": the text next to a QR code for the releases page.
-        qr_size = 17 * mm
-        app_text = Paragraph("Deine persönliche Version bekommst du direkt von uns. Eine allgemeine "
-                             f"Version gibt es auf GitHub unter „Releases“: <b>{RELEASES_URL}</b> "
-                             "– oder einfach den Code scannen.", body)
+        qr_size = 14 * mm
+        app_text = Paragraph("Deine Version bekommst du von uns. Eine allgemeine gibt es auf GitHub unter "
+                             f"„Releases“: <b>{RELEASES_URL}</b> – oder einfach den Code scannen.", body)
         app_row = Table([[app_text, RLImage(str(qr_png("https://" + RELEASES_URL, tmp / "qr.png")),
                                             width=qr_size, height=qr_size)]],
                         colWidths=[A5[0] - 2 * MARGIN - qr_size - 3 * mm, qr_size + 3 * mm])
@@ -213,12 +220,15 @@ def build(slug: str) -> Path:
         years = deck_years(person)
         r, g, b = (v * 0.8 / 255 for v in person.gradient_stops[-1])
         from reportlab.lib.colors import Color
-        chart = YearChart(years, A5[0] - 2 * MARGIN, 17 * mm, Color(r, g, b))
+        chart = YearChart(years, A5[0] - 2 * MARGIN, 14 * mm, Color(r, g, b))
         tile_v = ParagraphStyle("tile_v", parent=body, fontName="NotoSans-Bold", fontSize=9.5, leading=11,
                                 alignment=1, spaceAfter=0)
         tile_l = ParagraphStyle("tile_l", parent=body, fontSize=5.8, leading=7, textColor=MUTED,
                                 alignment=1, spaceAfter=0)
-        tiles = info_row(person, years)
+        # Born this many years ago: person.json "manual" can give "birthYear", else it's
+        # worked out from "age" (the card is for this year's birthday).
+        birth_year = manual.get("birthYear") or (date.today().year - age if age else None)
+        tiles = info_row(person, years, birth_year)
         stats_row = Table([[Paragraph(escape(v), tile_v) for v, _ in tiles],
                            [Paragraph(escape(l), tile_l) for _, l in tiles]],
                           colWidths=[(A5[0] - 2 * MARGIN) / len(tiles)] * len(tiles))
@@ -239,22 +249,26 @@ def build(slug: str) -> Path:
             app_row,
 
             Paragraph("Spotify", head),
-            Paragraph("Die Songs laufen über die Spotify-App auf deinem Handy. Du brauchst also Spotify "
-                      "mit einem <b>Premium</b>-Konto; beim ersten Start meldest du dich einmal an.", body),
+            Paragraph("Die Songs laufen über die Spotify-App auf deinem Handy – dafür brauchst du ein "
+                      "<b>Premium</b>-Konto.", body),
 
             Paragraph("Das Deck", head),
-            Paragraph(f"Damit die App deine Karten kennt, schicken wir dir die Datei <b>{deck_file}</b>. "
-                      "Speicher sie auf deinem Handy und lade sie auf dem Startbildschirm mit "
-                      "„Import Deck“. Die Datei kannst du auch weitergeben – so kann jede Musikster-App "
-                      "mit deinen Karten spielen. Fast alle Songs sind deine Lieblingssongs – ein paar "
-                      "haben wir dazugeschmuggelt.", body),
+            Paragraph(f"Lade die Datei <b>{deck_file}</b>, die wir dir schicken, auf dem Startbildschirm "
+                      "mit „Import Deck“ – und gib sie gern weiter, dann kann jede Musikster-App mit deinen "
+                      "Karten spielen. Fast alle Songs sind deine Lieblingssongs, ein paar haben wir "
+                      "dazugeschmuggelt.", body),
 
             Paragraph("So wird gespielt", head),
-            Paragraph("Alle bekommen eine aufgedeckte Startkarte. Wer dran ist, scannt den QR-Code einer "
-                      "neuen Karte und hört den Song – <b>raten tut nur, wer dran ist</b>. Die Karte "
-                      "wird in die eigene Zeitleiste gelegt: vor, zwischen oder hinter die Karten, die "
-                      "schon da liegen. Dann umdrehen: Stimmt das Jahr, bleibt die Karte liegen, sonst "
-                      "fliegt sie raus. Wer zuerst 10 Karten in der Reihe hat, gewinnt.", body),
+            Paragraph("<b>Erste Runde:</b> Alle ziehen eine Karte und hören den Song – ohne Jahr raten. "
+                      "Umgedreht ist sie der Anfang der eigenen Zeitleiste. <b>Danach:</b> Wer dran ist, "
+                      "scannt eine neue Karte, hört den Song und legt sie in die eigene Zeitleiste – vor, "
+                      "zwischen oder hinter die Karten, die schon liegen. Dann umdrehen: Stimmt das Jahr, "
+                      "bleibt sie liegen, sonst fliegt sie raus. Wer zuerst 10 Karten hat, gewinnt.", body),
+            Paragraph("<b>Münzen:</b> Wer dran ist und Interpret <i>und</i> Titel richtig nennt, bekommt "
+                      "eine Münze – auch schon in der ersten Runde. Mit einer Münze kannst du einen Song "
+                      "überspringen, oder eine Karte klauen: Glaubst du, jemand hat falsch gelegt, setz "
+                      "deine Münze an die richtige Stelle in seiner Zeitleiste, bevor umgedreht wird. "
+                      "Stimmt das, kommt die Karte in deine.", body),
 
             Paragraph("Deine Karten", head),
             stats_row,
@@ -279,7 +293,7 @@ def build(slug: str) -> Path:
                          f'height="{wink_size}" valign="-2.5"/>', closing)
         _, last_h = last.wrap(w - 2 * MARGIN, h)
         free = frame._y - frame._y1 - last_h - SIGNATURE_SPACE
-        if free < 3 * mm:
+        if free < 1.5 * mm:
             sys.exit(f"Only {free / mm:.0f} mm between the text and the closing line — shorten the text.")
         last.drawOn(c, MARGIN, MARGIN + SIGNATURE_SPACE)
         c.save()

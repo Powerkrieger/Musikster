@@ -146,7 +146,7 @@ private fun DeckList(
             Box(Modifier.width(RemoveButtonWidth), contentAlignment = Alignment.CenterEnd) {
                 if (loaded.source == DeckSource.Imported) {
                     TextButton(onClick = { onRemoveDeck(loaded.id) }) {
-                        Text("Remove", style = MaterialTheme.typography.bodySmall)
+                        Text("Remove Deck", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                 }
             }
@@ -154,4 +154,4 @@ private fun DeckList(
     }
 }
 
-private val RemoveButtonWidth = 80.dp
+private val RemoveButtonWidth = 104.dp

@@ -19,7 +19,7 @@ base {
 /**
  * One product flavor per recipient, discovered from people/<slug>/person.json (see
  * README.md "Adding a person"). The slug doubles as the flavor name and the deck id.
- * Everything about a person lives in that one directory — config, photo, the deck.json
+ * Everything about a person lives in that one directory — config, photo, the deck file
  * scripts/build_deck.py generates (people/<slug>/assets/, wired in below as the flavor's
  * assets dir so it gets bundled) and the printable PDFs — so it can be its own private
  * git repo. Adding someone is a new directory rather than a Gradle edit.
@@ -34,6 +34,11 @@ data class Person(
     val appName: String,
     val greeting: String,
     val palette: List<String>,
+    /**
+     * person.json "bundleDeck" (default true). false ships the build without the deck, so
+     * the person imports the deck file themselves once — and knows how to pass it on.
+     */
+    val bundleDeck: Boolean,
     /** people/<slug>, or null for the generic fallback flavor. */
     val dir: File?,
 )
@@ -44,7 +49,7 @@ fun loadPeople(): List<Person> {
         ?.sortedBy { it.name } ?: emptyList()
     if (dirs.isEmpty()) {
         logger.lifecycle("No people/<slug>/person.json found — building the generic 'musikster' flavor only.")
-        return listOf(Person(slug = "musikster", appName = "Musikster", greeting = "", palette = emptyList(), dir = null))
+        return listOf(Person(slug = "musikster", appName = "Musikster", greeting = "", palette = emptyList(), bundleDeck = false, dir = null))
     }
     return dirs.map { dir ->
         val slug = dir.name
@@ -58,6 +63,7 @@ fun loadPeople(): List<Person> {
             appName = json["appName"] as? String ?: "${json["name"]}'s Musikster",
             greeting = json["greeting"] as? String ?: "",
             palette = (json["palette"] as? List<*>)?.map { it.toString() } ?: emptyList(),
+            bundleDeck = json["bundleDeck"] as? Boolean ?: true,
             dir = dir,
         )
     }
@@ -85,8 +91,8 @@ android {
         applicationId = "de.powerizzle.musikster"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -126,9 +132,11 @@ android {
     }
     sourceSets {
         people.forEach { person ->
-            // The generated deck.json lives with the rest of the person's data rather than
+            // The generated deck file (<slug>-deck.json.gz) lives with the rest of the person's data rather than
             // under app/src/<slug>/, so the whole person is one directory (and one repo).
-            person.dir?.let { getByName(person.slug).assets.srcDir(File(it, "assets")) }
+            if (person.bundleDeck) {
+                person.dir?.let { getByName(person.slug).assets.srcDir(File(it, "assets")) }
+            }
         }
     }
 

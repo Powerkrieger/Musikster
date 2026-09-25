@@ -1,6 +1,7 @@
 package de.powerizzle.musikster
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -136,16 +137,21 @@ private fun DeckList(
                     color = Color.White.copy(alpha = 0.8f)
                 )
             }
-            if (loaded.source == DeckSource.Imported) {
-                TextButton(onClick = { onRemoveDeck(loaded.id) }) {
-                    Text("Remove", style = MaterialTheme.typography.bodySmall)
-                }
-                Spacer(Modifier.width(4.dp))
-            }
             Switch(
                 checked = loaded.enabled,
                 onCheckedChange = { enabled -> onSetDeckEnabled(loaded.id, enabled) }
             )
+            Spacer(Modifier.width(4.dp))
+            // Fixed-width slot, empty for the built-in deck, so every row's switch lines up.
+            Box(Modifier.width(RemoveButtonWidth), contentAlignment = Alignment.CenterEnd) {
+                if (loaded.source == DeckSource.Imported) {
+                    TextButton(onClick = { onRemoveDeck(loaded.id) }) {
+                        Text("Remove", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
         }
     }
 }
+
+private val RemoveButtonWidth = 80.dp

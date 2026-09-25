@@ -244,17 +244,26 @@ class Project:
                 any(b.first != a.last + 1 for a, b in zip(self.volumes, self.volumes[1:])):
             sys.exit(f"{pretty(path)}: volumes don't tile the triangle list — not a layout this script understands.")
 
+    def print_setting(self, key: str) -> str:
+        """A value from the project's embedded print/printer/filament config."""
+        m = re.search(rf"^; {re.escape(key)} = (.*)$", self.entries["Metadata/Slic3r_PE.config"].decode("utf-8"), re.M)
+        if m is None:
+            sys.exit(f"{pretty(self.path)}: no {key!r} in its print settings.")
+        return m.group(1)
+
     def sub_mesh(self, vol: Volume) -> tuple[np.ndarray, np.ndarray]:
         """The volume's own (vertices, faces), re-indexed from 0."""
         t = self.tris[vol.first:vol.last + 1]
         idx, inv = np.unique(t, return_inverse=True)
         return self.verts[idx], inv.reshape(t.shape)
 
-    def write(self, output_path: Path, volumes: list[tuple[np.ndarray, np.ndarray, str]]) -> None:
+    def write(self, output_path: Path, volumes: list[tuple[np.ndarray, np.ndarray, str]],
+              extra_entries: dict[str, bytes] | None = None) -> None:
         """Save a copy whose object consists of the given (vertices, faces, volume xml)
-        triples: the existing volumes' xml (updated or not) in order, then any new ones.
-        Triangle ranges are renumbered; the thumbnail is dropped since it would still
-        show the template (PrusaSlicer regenerates one on save)."""
+        triples: existing volumes' xml (updated or not) in their original order, then any
+        new ones; existing volumes left out of the list are dropped. Triangle ranges are
+        renumbered; the thumbnail is dropped since it would still show the template
+        (PrusaSlicer regenerates one on save). extra_entries adds/replaces zip entries."""
         all_v, all_t, config_parts = [], [], []
         for v, f, xml in volumes:
             base_v, base_t = sum(len(x) for x in all_v), sum(len(x) for x in all_t)
@@ -267,15 +276,21 @@ class Project:
         model_xml = re.sub(r"<vertices>.*?</vertices>", lambda m: f"<vertices>\n{vertex_xml}    </vertices>", self.model_xml, flags=re.S)
         model_xml = re.sub(r"<triangles>.*?</triangles>", lambda m: f"<triangles>\n{triangle_xml}    </triangles>", model_xml, flags=re.S)
 
+        old_xml = {vol.xml for vol in self.volumes}
+        kept = [xml for _, _, xml in volumes if xml in old_xml]
         config = self.config
-        for old, new in zip(self.volumes, config_parts):
-            config = config.replace(old.xml, new, 1)
-        extra = "".join(f"  {xml}\n" for xml in config_parts[len(self.volumes):])
+        for vol in self.volumes:
+            if vol.xml not in kept:
+                config = re.sub(r"\s*" + re.escape(vol.xml), "", config, count=1)
+        for old, new in zip(kept, config_parts):
+            config = config.replace(old, new, 1)
+        extra = "".join(f"  {xml}\n" for xml in config_parts[len(kept):])
         config = config.replace(" </object>", f"{extra} </object>", 1)
 
         entries = dict(self.entries)
         entries["3D/3dmodel.model"] = model_xml.encode("utf-8")
         entries["Metadata/Slic3r_PE_model.config"] = config.encode("utf-8")
+        entries.update(extra_entries or {})
         entries.pop("Metadata/thumbnail.png", None)
         entries["_rels/.rels"] = re.sub(r'\s*<Relationship [^>]*thumbnail[^>]*/>', "",
                                         entries["_rels/.rels"].decode("utf-8")).encode("utf-8")
@@ -300,3 +315,17 @@ def negative_volume_xml(name: str, v: np.ndarray) -> str:
         '   <mesh edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>\n'
         '  </volume>'
     )
+
+
+COLOR_CHANGES_ENTRY = "Metadata/Prusa_Slicer_custom_gcode_per_print_z.xml"
+
+
+def color_changes_xml(changes: list[tuple[float, str]]) -> bytes:
+    """COLOR_CHANGES_ENTRY with an M600 per (print_z, colour), as if added with the "+" on
+    PrusaSlicer's layer slider: the swap happens before the first layer whose top reaches
+    print_z; the colour is only what the preview shows. PrusaSlicer honours these only with
+    a single-extruder printer profile (they vanish under an MMU one)."""
+    codes = "".join(f'<code print_z="{z:g}" type="0" extruder="1" color="{c}" extra="" gcode="M600"/>\n'
+                    for z, c in changes)
+    return ('<?xml version="1.0" encoding="utf-8"?>\n<custom_gcodes_per_print_z>\n'
+            f'{codes}<mode value="SingleExtruder"/>\n</custom_gcodes_per_print_z>\n').encode("utf-8")

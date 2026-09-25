@@ -7,7 +7,8 @@ which is meant to be its own private git repo:
   person.json        name, app name, greeting, playlist, card-id prefix, colors
   overrides.csv      manual release-year corrections (optional)
   face.png           photo composited into the center of every QR code (optional)
-  assets/deck.json   generated here; bundled into the <slug> flavor by Gradle
+  assets/<slug>-deck.json.gz  generated here; the one deck file — sent to people for
+                     "Import Deck", and bundled into the <slug> flavor by Gradle
   print/*.pdf        generated here; the printable card sheets
 
 What it does:
@@ -15,9 +16,10 @@ What it does:
   2. Reads every track in the person's playlist.
   3. Looks up each track's release year via the free iTunes Search API,
      applying any corrections from overrides.csv.
-  4. Writes people/<slug>/assets/deck.json — app/build.gradle.kts wires that
-     directory in as the <slug> flavor's assets, so rebuild/reinstall that
-     flavor to pick it up.
+  4. Writes people/<slug>/assets/<slug>-deck.json.gz (gzipped JSON, ~5x smaller; the
+     app's Import Deck and bundled-deck loader both unpack it). app/build.gradle.kts
+     wires that directory in as the <slug> flavor's assets, so rebuild/reinstall that
+     flavor to pick it up, or send the file to import.
   5. Renders printable A4 PDFs into people/<slug>/print/: the deck (standardized
      QR-code front sheets alternating with gradient title/artist/year back sheets,
      sized for a 3x4 duplex print job) and a separate line sheet (the cutting
@@ -42,6 +44,7 @@ dashboard redirect URI, installing uv).
 from __future__ import annotations
 
 import csv
+import gzip
 import hashlib
 import base64
 import json
@@ -68,6 +71,9 @@ REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/callback"
 SCOPES = "playlist-read-private playlist-read-collaborative"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
+# Refresh token from the last browser login, so reruns don't need the browser again
+# (gitignored; delete it to force a fresh login).
+TOKEN_CACHE = Path(__file__).resolve().parent / ".spotify_token.json"
 
 CARDS_PER_ROW = 3
 CARDS_PER_COL = 4
@@ -111,8 +117,11 @@ class Person:
         return self.dir / "face.png"
 
     @property
-    def assets_deck_json(self) -> Path:
-        return self.dir / "assets" / "deck.json"
+    def deck_file(self) -> Path:
+        """The one deck file: sent to people for "Import Deck" and, unless person.json has
+        "bundleDeck": false, bundled into the flavor (the app finds any *-deck.json[.gz]
+        in its assets)."""
+        return self.dir / "assets" / f"{self.slug}-deck.json.gz"
 
     @property
     def output_dir(self) -> Path:
@@ -191,6 +200,47 @@ def _b64url(data: bytes) -> str:
 
 
 def pkce_login(client_id: str, scopes: str = SCOPES) -> str:
+    """Returns an access token — silently via the cached refresh token when there is one
+    that covers `scopes`, otherwise through a one-time browser login (cached afterwards).
+    """
+    cached = _load_cached_token()
+    if cached and set(scopes.split()) <= set(cached.get("scope", "").split()):
+        body = urlencode({
+            "client_id": client_id,
+            "grant_type": "refresh_token",
+            "refresh_token": cached["refresh_token"],
+        }).encode("utf-8")
+        req = Request(TOKEN_URL, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        try:
+            with urlopen(req) as resp:
+                token_json = json.loads(resp.read())
+        except HTTPError as e:
+            print(f"  cached Spotify login no longer works ({e.code}) — logging in again")
+        else:
+            print("Using cached Spotify login.")
+            _save_cached_token(token_json, fallback_refresh=cached["refresh_token"])
+            return token_json["access_token"]
+    return _pkce_browser_login(client_id, scopes)
+
+
+def _load_cached_token() -> dict | None:
+    try:
+        data = json.loads(TOKEN_CACHE.read_text())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and data.get("refresh_token") else None
+
+
+def _save_cached_token(token_json: dict, fallback_refresh: str | None = None) -> None:
+    # Spotify may rotate the refresh token on each refresh; keep the old one if it didn't.
+    refresh = token_json.get("refresh_token") or fallback_refresh
+    if not refresh:
+        return
+    TOKEN_CACHE.write_text(json.dumps({"refresh_token": refresh, "scope": token_json.get("scope", "")}))
+    TOKEN_CACHE.chmod(0o600)
+
+
+def _pkce_browser_login(client_id: str, scopes: str) -> str:
     verifier = _b64url(secrets.token_bytes(64))
     challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
 
@@ -252,6 +302,7 @@ def pkce_login(client_id: str, scopes: str = SCOPES) -> str:
     with urlopen(req) as resp:
         token_json = json.loads(resp.read())
     print(f"  granted scope: {token_json.get('scope', '?')}")
+    _save_cached_token(token_json)
     return token_json["access_token"]
 
 
@@ -272,6 +323,10 @@ def fetch_playlist_tracks(playlist_id: str, access_token: str) -> list[PlaylistT
     """GET /playlists/{id}/items — the current replacement for the deprecated /tracks
     sub-resource (which 403s). Each item's track/episode data lives under the "item" key
     (the old "track" key is a deprecated back-compat alias). limit maxes out at 50.
+
+    A development-mode app only gets to read playlists the logged-in user owns; anyone
+    else's public playlist 403s here, so that case falls back to the public embed page
+    (see fetch_public_playlist_tracks).
     """
     fields = "items(item(id,uri,name,type,artists(name),album(images))),next"
     limit = 50
@@ -288,6 +343,9 @@ def fetch_playlist_tracks(playlist_id: str, access_token: str) -> list[PlaylistT
                 data = json.loads(resp.read())
         except HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
+            if e.code == 403 and not tracks:
+                print("  Web API says 403 (not your playlist?) — reading the public embed page instead…")
+                return fetch_public_playlist_tracks(playlist_id)
             sys.exit(f"Spotify API error fetching playlist tracks: {e.code} {e.reason}\n{body}")
 
         for entry in data.get("items", []):
@@ -307,6 +365,45 @@ def fetch_playlist_tracks(playlist_id: str, access_token: str) -> list[PlaylistT
 
         url = data.get("next") or None
 
+    return _dedupe_tracks(tracks)
+
+
+def fetch_public_playlist_tracks(playlist_id: str) -> list[PlaylistTrack]:
+    """Reads a *public* playlist the logged-in user doesn't own, which the Web API refuses
+    to serve to a development-mode app (as does GET /tracks for hydrating the ids, so
+    there's no album art on this path — the app never shows it anyway). open.spotify.com's
+    embed page carries the track list as JSON: ids, titles and artist names, possibly
+    capped for very long playlists.
+    """
+    req = Request(
+        f"https://open.spotify.com/embed/playlist/{playlist_id}",
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+    try:
+        with urlopen(req) as resp:
+            page = resp.read().decode("utf-8", errors="replace")
+    except HTTPError as e:
+        sys.exit(f"Couldn't read the playlist's embed page either: {e.code} {e.reason}")
+    match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', page, re.S)
+    if not match:
+        sys.exit("Playlist embed page has no track data — is the playlist public?")
+    entity = json.loads(match.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+    print(f"  embed: '{entity.get('name')}' by {entity.get('subtitle')}")
+
+    tracks: list[PlaylistTrack] = []
+    for item in entity.get("trackList", []):
+        uri = item.get("uri", "")
+        if not uri.startswith("spotify:track:"):
+            continue
+        # The embed joins artists with ",\xa0" (non-breaking space); the API path yields
+        # ", ", and overrides.csv keys are typed with a plain space.
+        tracks.append(PlaylistTrack(
+            spotify_track_id=uri.split(":")[-1],
+            uri=uri,
+            name=(item.get("title") or "Unknown").replace("\xa0", " "),
+            artist=(item.get("subtitle") or "Unknown").replace("\xa0", " "),
+            album_art_url=None,
+        ))
     return _dedupe_tracks(tracks)
 
 
@@ -414,8 +511,13 @@ def write_deck_json(person: Person, playlist_id: str, cards: list[dict]) -> None
         "playlistId": playlist_id,
         "cards": cards,
     }
-    person.assets_deck_json.parent.mkdir(parents=True, exist_ok=True)
-    person.assets_deck_json.write_text(json.dumps(deck, indent=2, ensure_ascii=False), encoding="utf-8")
+    text = json.dumps(deck, separators=(",", ":"), ensure_ascii=False)
+    person.deck_file.parent.mkdir(parents=True, exist_ok=True)
+    # mtime=0 keeps the bytes identical across rebuilds of the same deck.
+    person.deck_file.write_bytes(gzip.compress(text.encode("utf-8"), compresslevel=9, mtime=0))
+    # Files earlier versions wrote; left behind they'd be a second, stale copy of the deck.
+    for stale in (person.dir / "assets" / "deck.json", person.output_dir / f"{person.slug}-deck.json"):
+        stale.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -726,8 +828,9 @@ def main() -> None:
 
     write_deck_json(person, playlist_id, cards)
     print(
-        f"Wrote {person.assets_deck_json.relative_to(REPO_ROOT)} — "
-        f"rebuild/reinstall the '{person.slug}' flavor to pick it up."
+        f"Wrote {person.deck_file.relative_to(REPO_ROOT)} ({person.deck_file.stat().st_size // 1024} KB) — "
+        f"send it for \"Import Deck\", or rebuild/reinstall the '{person.slug}' flavor to bundle it "
+        f"(unless person.json has \"bundleDeck\": false)."
     )
 
     print("Laying out printable PDFs…")

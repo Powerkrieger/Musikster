@@ -113,7 +113,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "${result.deck.name} $verb — ${result.deck.cards.size} cards."
                 }
                 DeckImportResult.Invalid ->
-                    "Couldn't read that file — make sure it's a deck.json (or deck.json.gz) file."
+                    "Couldn't read that file — make sure it's a Musikster deck file (…-deck.json.gz or .json)."
             }
             refreshDecks()
         }

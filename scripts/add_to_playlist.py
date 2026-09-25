@@ -152,7 +152,7 @@ def main() -> None:
         return
 
     add_tracks(playlist_id, [uri for *_, uri in to_add], access_token)
-    print(f"Added {len(to_add)} tracks. Rerun build_deck.py to refresh deck.json.")
+    print(f"Added {len(to_add)} tracks. Rerun build_deck.py to refresh the deck file.")
 
 
 if __name__ == "__main__":

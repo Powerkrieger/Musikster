@@ -92,7 +92,7 @@ private fun CameraScanScreen(hasDeck: Boolean, onScanned: (String) -> Unit) {
         ) {
             Text("No deck in play", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
-            Text("Go back Home and switch a deck on, or use \"Import Deck\" to load a deck.json file.", textAlign = TextAlign.Center)
+            Text("Go back Home and switch a deck on, or use \"Import Deck\" to load a deck file (…-deck.json.gz).", textAlign = TextAlign.Center)
         }
         return
     }
